@@ -40,7 +40,7 @@ export const authController = {
         roleId: user.roleId,
         roleName: user.role.name,
       };
-      const token = jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtExpiresIn });
+      const token = jwt.sign(payload, config.jwtSecret, { expiresIn: config.jwtExpiresIn as jwt.SignOptions['expiresIn'] });
 
       return res.json({
         token,
@@ -64,14 +64,6 @@ export const authController = {
       const user = await prisma.user.findUnique({
         where: { id: req.user.userId },
         include: { role: true, department: true },
-        select: {
-          id: true,
-          name: true,
-          email: true,
-          departmentId: true,
-          role: { select: { name: true } },
-          department: { select: { code: true, name: true } },
-        },
       });
       if (!user) return res.status(404).json({ error: 'User not found' });
       return res.json({
