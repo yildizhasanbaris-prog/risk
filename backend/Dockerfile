@@ -22,4 +22,5 @@ RUN mkdir -p uploads
 EXPOSE 8080
 ENV NODE_ENV=production
 
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
+# Migration already run on Supabase - skip at startup to avoid pooler issues
+CMD ["node", "dist/index.js"]
