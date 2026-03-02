@@ -9,7 +9,19 @@ import { authMiddleware } from './middleware/auth';
 
 const app = express();
 
-app.use(cors({ origin: config.corsOrigin }));
+app.use(cors({
+  origin: (origin, cb) => {
+    if (config.corsOrigin === true || !origin) return cb(null, true);
+    const list = config.corsOrigin as string[];
+    const hasLocalhost = list.some((o) => o.startsWith('http://localhost') || o.startsWith('http://127.0.0.1'));
+    const isLocalhost = origin?.startsWith('http://localhost') || origin?.startsWith('http://127.0.0.1');
+    const allowed =
+      list.includes(origin || '') ||
+      (origin?.endsWith('.vercel.app') ?? false) ||
+      (hasLocalhost && isLocalhost);
+    cb(null, allowed ? (origin ?? true) : false);
+  },
+}));
 app.use(express.json());
 
 // Health check
