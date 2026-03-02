@@ -35,6 +35,7 @@ app.use('/api/reports', authMiddleware, reportRoutes);
 app.use('/api/lookups', authMiddleware, lookupRoutes);
 app.use('/api/dashboard', authMiddleware, dashboardRoutes);
 
-app.listen(config.port, () => {
-  console.log(`Risk API running on http://localhost:${config.port}`);
+const port = config.port;
+app.listen(port, '0.0.0.0', () => {
+  console.log(`Risk API running on port ${port}`);
 });
