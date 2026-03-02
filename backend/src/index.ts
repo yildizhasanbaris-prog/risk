@@ -9,18 +9,11 @@ import { authMiddleware } from './middleware/auth';
 
 const app = express();
 
+// CORS: allow all origins (restrict via CORS_ORIGIN in production if needed)
 app.use(cors({
-  origin: (origin, cb) => {
-    if (config.corsOrigin === true || !origin) return cb(null, true);
-    const list = config.corsOrigin as string[];
-    const hasLocalhost = list.some((o) => o.startsWith('http://localhost') || o.startsWith('http://127.0.0.1'));
-    const isLocalhost = origin?.startsWith('http://localhost') || origin?.startsWith('http://127.0.0.1');
-    const allowed =
-      list.includes(origin || '') ||
-      (origin?.endsWith('.vercel.app') ?? false) ||
-      (hasLocalhost && isLocalhost);
-    cb(null, allowed ? (origin ?? true) : false);
-  },
+  origin: true, // Reflect request origin - allows Vercel, localhost, etc.
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 app.use(express.json());
 
