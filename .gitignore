@@ -1,0 +1,32 @@
+# Dependencies
+node_modules
+
+# Build
+dist
+dist-ssr
+*.local
+
+# Environment (secrets)
+.env
+.env.local
+.env.*.local
+supabase.txt
+
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+
+# Uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Prisma
+backend/prisma/*.db
+backend/prisma/*.db-journal

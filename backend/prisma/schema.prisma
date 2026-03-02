@@ -1,0 +1,240 @@
+// SMS Risk Analysis System - Prisma Schema
+// https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============ ENUMS ============
+
+enum ReportStatus {
+  NEW
+  UNDER_REVIEW
+  NOT_SAFETY_RELATED
+  HIRM_REQUIRED
+  IN_HIRM
+  ACTION_PLANNING
+  ACTION_IN_PROGRESS
+  PENDING_EFFECTIVENESS_CHECK
+  CLOSED
+}
+
+enum MorStatus {
+  NONE
+  DRAFT
+  SUBMITTED
+  ACKNOWLEDGED
+}
+
+enum AssessmentType {
+  INITIAL
+  RESIDUAL
+  INTERMEDIATE
+}
+
+enum ActionStatus {
+  PLANNED
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+// ============ LOOKUP TABLES ============
+
+model Role {
+  id        Int     @id @default(autoincrement())
+  name      String  @unique // Reporter, SafetyOfficer, Manager, Admin
+  users     User[]
+}
+
+model SeverityLevel {
+  id          Int    @id @default(autoincrement())
+  code        String @unique // A, B, C, D, E
+  description String
+  sortOrder   Int    @default(0)
+  riskMatrix  RiskMatrix[]
+}
+
+model LikelihoodLevel {
+  id          Int    @id @default(autoincrement())
+  code        Int    @unique // 1, 2, 3, 4, 5
+  description String
+  sortOrder   Int    @default(0)
+  riskMatrix  RiskMatrix[]
+}
+
+model RiskMatrix {
+  id            Int    @id @default(autoincrement())
+  severityCode  String // A, B, C, D, E
+  likelihoodCode Int   // 1, 2, 3, 4, 5
+  riskIndex     String // e.g. "4B"
+  riskLevel     String // INTOLERABLE, TOLERABLE, ACCEPTABLE
+  severity      SeverityLevel @relation(fields: [severityCode], references: [code])
+  likelihood    LikelihoodLevel @relation(fields: [likelihoodCode], references: [code])
+  @@unique([severityCode, likelihoodCode])
+}
+
+model Category {
+  id          Int    @id @default(autoincrement())
+  code        String @unique
+  description String
+  reports     Report[]
+}
+
+model Department {
+  id          Int    @id @default(autoincrement())
+  code        String @unique
+  name        String
+  users       User[]
+  reports     Report[]
+}
+
+// ============ USERS ============
+
+model User {
+  id           Int      @id @default(autoincrement())
+  name         String
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  departmentId Int?     @map("department_id")
+  roleId       Int      @map("role_id")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  department Department? @relation(fields: [departmentId], references: [id])
+  role       Role       @relation(fields: [roleId], references: [id])
+
+  reportsCreated    Report[]       @relation("ReportReporter")
+  riskAssessments   RiskAssessment[]
+  actionsOwned      Action[]       @relation("ActionOwner")
+  reportAttachments ReportAttachment[]
+  statusHistory     ReportStatusHistory[]
+  auditLogs         AuditLog[]
+}
+
+// ============ REPORTS ============
+
+model Report {
+  id                 Int       @id @default(autoincrement())
+  reportNo           String?   @unique @map("report_no") // SMS-2025-001
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  reportedByUserId   Int       @map("reported_by_user_id")
+  departmentId       Int?      @map("department_id")
+  location           String?
+  aircraftReg        String?   @map("aircraft_reg")
+  aircraftType       String?   @map("aircraft_type")
+  componentPn        String?   @map("component_pn")
+  componentSn        String?   @map("component_sn")
+  title              String
+  description        String?
+  immediateActions   String?   @map("immediate_actions")
+  categoryId         Int?      @map("category_id")
+  isSafetyRelated    Boolean   @default(false) @map("is_safety_related")
+  isMor              Boolean   @default(false) @map("is_mor")
+  morDeadline        DateTime? @map("mor_deadline")
+  morStatus          MorStatus @default(NONE) @map("mor_status")
+  status             ReportStatus @default(NEW)
+  currentRiskLevel   String?   @map("current_risk_level") // INTOLERABLE, TOLERABLE, ACCEPTABLE
+  closureSummary     String?   @map("closure_summary")
+  closedAt           DateTime? @map("closed_at")
+
+  reportedBy   User     @relation("ReportReporter", fields: [reportedByUserId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id])
+  category     Category? @relation(fields: [categoryId], references: [id])
+
+  riskAssessments     RiskAssessment[]
+  actions             Action[]
+  attachments         ReportAttachment[]
+  statusHistory       ReportStatusHistory[]
+}
+
+// ============ RISK ASSESSMENTS (HIRM) ============
+
+model RiskAssessment {
+  id                Int            @id @default(autoincrement())
+  reportId          Int            @map("report_id")
+  assessmentType    AssessmentType @map("assessment_type")
+  hazardDescription String?        @map("hazard_description")
+  consequences      String?
+  existingControls  String?        @map("existing_controls")
+  proposedControls  String?        @map("proposed_controls")
+  severityCode      String?        @map("severity_code") // A-E
+  likelihoodCode    Int?           @map("likelihood_code") // 1-5
+  riskIndex         String?        @map("risk_index") // e.g. "4B"
+  riskLevel         String?        @map("risk_level") // INTOLERABLE, TOLERABLE, ACCEPTABLE
+  assessedByUserId  Int?           @map("assessed_by_user_id")
+  assessedAt        DateTime?      @map("assessed_at")
+
+  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  assessedBy User? @relation(fields: [assessedByUserId], references: [id])
+  actions  Action[]
+}
+
+// ============ ACTIONS (CAPA) ============
+
+model Action {
+  id                  Int          @id @default(autoincrement())
+  reportId            Int          @map("report_id")
+  riskAssessmentId    Int?         @map("risk_assessment_id")
+  actionNo            Int          @map("action_no")
+  description         String
+  ownerUserId         Int          @map("owner_user_id")
+  dueDate             DateTime?    @map("due_date")
+  status              ActionStatus @default(PLANNED)
+  completedAt         DateTime?    @map("completed_at")
+  effectivenessComment String?     @map("effectiveness_comment")
+
+  report          Report          @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  riskAssessment  RiskAssessment? @relation(fields: [riskAssessmentId], references: [id])
+  owner           User            @relation("ActionOwner", fields: [ownerUserId], references: [id])
+}
+
+// ============ ATTACHMENTS ============
+
+model ReportAttachment {
+  id         Int      @id @default(autoincrement())
+  reportId  Int      @map("report_id")
+  filePath  String   @map("file_path")
+  fileName  String   @map("file_name")
+  mimeType  String?  @map("mime_type")
+  uploadedByUserId Int @map("uploaded_by_user_id")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  report  Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  uploader User  @relation(fields: [uploadedByUserId], references: [id])
+}
+
+// ============ AUDIT / STATUS HISTORY ============
+
+model ReportStatusHistory {
+  id         Int      @id @default(autoincrement())
+  reportId  Int      @map("report_id")
+  fromStatus ReportStatus? @map("from_status")
+  toStatus   ReportStatus  @map("to_status")
+  changedByUserId Int @map("changed_by_user_id")
+  changedAt DateTime @default(now()) @map("changed_at")
+  comment   String?
+
+  report    Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  changedBy User   @relation(fields: [changedByUserId], references: [id])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  entityType String  @map("entity_type")
+  entityId   Int      @map("entity_id")
+  action     String   // CREATE, UPDATE, DELETE
+  userId     Int?     @map("user_id")
+  timestamp  DateTime @default(now())
+  oldValue   Json?    @map("old_value")
+  newValue   Json?    @map("new_value")
+
+  user User? @relation(fields: [userId], references: [id])
+}
