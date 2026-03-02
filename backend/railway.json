@@ -1,11 +1,7 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS"
-  },
-  "deploy": {
-    "startCommand": "npx prisma migrate deploy && npx prisma generate && npm run build && npm start",
-    "restartPolicyType": "ON_FAILURE",
-    "restartPolicyMaxRetries": 10
+    "builder": "DOCKERFILE",
+    "dockerfilePath": "Dockerfile"
   }
 }
