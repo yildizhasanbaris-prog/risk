@@ -5,14 +5,14 @@ WORKDIR /app
 # Install OpenSSL for Prisma (Debian has compatible version)
 RUN apt-get update -y && apt-get install -y openssl ca-certificates && rm -rf /var/lib/apt/lists/*
 
-# Copy backend files (context: repo root when dockerfilePath is backend/Dockerfile)
-COPY backend/package*.json ./
+# Install dependencies (include dev for build)
+COPY package*.json ./
 RUN npm ci
 
-COPY backend/prisma ./prisma/
+COPY prisma ./prisma/
 RUN npx prisma generate
 
-COPY backend .
+COPY . .
 RUN npm run build
 
 # Create uploads dir
