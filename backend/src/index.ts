@@ -6,7 +6,8 @@ import { reportRoutes } from './routes/reports';
 import { lookupRoutes } from './routes/lookups';
 import { dashboardRoutes } from './routes/dashboard';
 import { complianceRoutes } from './routes/compliance';
-import { authMiddleware } from './middleware/auth';
+import { adminRoutes } from './routes/admin';
+import { authMiddleware, requireRole } from './middleware/auth';
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use('/api/reports', authMiddleware, reportRoutes);
 app.use('/api/lookups', authMiddleware, lookupRoutes);
 app.use('/api/dashboard', authMiddleware, dashboardRoutes);
 app.use('/api/compliance', authMiddleware, complianceRoutes);
+app.use('/api/admin', authMiddleware, requireRole('Admin', 'Manager'), adminRoutes);
 
 const port = config.port;
 app.listen(port, '0.0.0.0', () => {
