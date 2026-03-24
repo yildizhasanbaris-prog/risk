@@ -28,6 +28,7 @@ export interface Report {
   riskAssessmentRequired?: boolean | null;
   externalReportingRequired?: boolean | null;
   screeningComment?: string | null;
+  closureSummary?: string | null;
 }
 
 export interface ReportCreate {
