@@ -5,33 +5,37 @@ import { complianceAndChangeController } from '../controllers/complianceAndChang
 import { riskAssessmentRoutes } from './riskAssessments';
 import { actionRoutes } from './actions';
 import { attachmentRoutes } from './attachments';
+import { requireRole } from '../middleware/auth';
+
+const officer = requireRole('SafetyOfficer', 'Manager', 'Admin', 'SMSManager', 'Investigator');
+const reviewers = requireRole('SafetyOfficer', 'Manager', 'Admin', 'SMSManager', 'DepartmentReviewer');
 
 export const reportRoutes = Router();
 
 reportRoutes.get('/', reportController.list);
-reportRoutes.get('/export/excel', reportController.exportExcel);
+reportRoutes.get('/export/excel', officer, reportController.exportExcel);
 reportRoutes.use('/:id/risk-assessments', riskAssessmentRoutes);
 reportRoutes.use('/:id/actions', actionRoutes);
 reportRoutes.use('/:id/attachments', attachmentRoutes);
 reportRoutes.post('/', reportController.create);
 reportRoutes.get('/:id/allowed-statuses', reportController.getAllowedStatuses);
 reportRoutes.get('/:id/hazards', caseExtensionsController.listHazards);
-reportRoutes.post('/:id/hazards', caseExtensionsController.createHazard);
+reportRoutes.post('/:id/hazards', officer, caseExtensionsController.createHazard);
 reportRoutes.get('/:id/investigation', caseExtensionsController.getInvestigation);
-reportRoutes.put('/:id/investigation', caseExtensionsController.upsertInvestigation);
+reportRoutes.put('/:id/investigation', officer, caseExtensionsController.upsertInvestigation);
 reportRoutes.get('/:id/effectiveness', caseExtensionsController.getEffectiveness);
-reportRoutes.put('/:id/effectiveness', caseExtensionsController.upsertEffectiveness);
+reportRoutes.put('/:id/effectiveness', officer, caseExtensionsController.upsertEffectiveness);
 reportRoutes.get('/:id/case-review', caseExtensionsController.getCaseReview);
-reportRoutes.put('/:id/case-review', caseExtensionsController.upsertCaseReview);
+reportRoutes.put('/:id/case-review', reviewers, caseExtensionsController.upsertCaseReview);
 reportRoutes.get('/:id/approvals', caseExtensionsController.listApprovals);
-reportRoutes.post('/:id/approvals', caseExtensionsController.createApproval);
-reportRoutes.post('/:id/approvals/:approvalId/sign', caseExtensionsController.signApproval);
+reportRoutes.post('/:id/approvals', officer, caseExtensionsController.createApproval);
+reportRoutes.post('/:id/approvals/:approvalId/sign', officer, caseExtensionsController.signApproval);
 reportRoutes.get('/:id/comments', caseExtensionsController.listComments);
 reportRoutes.post('/:id/comments', caseExtensionsController.createComment);
 reportRoutes.get('/:id/change', complianceAndChangeController.getChange);
-reportRoutes.put('/:id/change', complianceAndChangeController.upsertChange);
+reportRoutes.put('/:id/change', officer, complianceAndChangeController.upsertChange);
 reportRoutes.get('/:id', reportController.getById);
 reportRoutes.put('/:id', reportController.update);
-reportRoutes.put('/:id/lifecycle', reportController.updateLifecycle);
-reportRoutes.post('/:id/status', reportController.updateStatus);
-reportRoutes.put('/:id/review', reportController.review);
+reportRoutes.put('/:id/lifecycle', officer, reportController.updateLifecycle);
+reportRoutes.post('/:id/status', reviewers, reportController.updateStatus);
+reportRoutes.put('/:id/review', reviewers, reportController.review);

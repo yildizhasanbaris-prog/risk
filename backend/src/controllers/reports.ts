@@ -71,6 +71,26 @@ const reviewUpdateSchema = z.object({
   screeningComment: z.string().optional().nullable(),
 });
 
+const PRIVILEGED_ROLES = new Set(['Admin', 'SafetyOfficer', 'Manager', 'SMSManager', 'AccountableManager']);
+
+function maskConfidentialReport(report: Record<string, unknown>, roleName: string): Record<string, unknown> {
+  if (!report.confidential && !report.anonymous) return report;
+  if (PRIVILEGED_ROLES.has(roleName)) return report;
+
+  const masked = { ...report };
+  if (report.anonymous) {
+    masked.reportedBy = { id: 0, name: 'Anonim', email: '***' };
+    masked.reportedByUserId = null;
+  }
+  if (report.confidential) {
+    masked.title = '[Gizli Rapor]';
+    masked.description = 'Bu rapor gizli olarak işaretlenmiştir.';
+    masked.immediateActions = null;
+    masked.personsInformed = null;
+  }
+  return masked;
+}
+
 async function generateReportNo(): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `SMS-${year}-`;
@@ -121,7 +141,8 @@ export const reportController = {
         prisma.report.count({ where }),
       ]);
 
-      return res.json({ data: reports, total });
+      const maskedReports = reports.map((r) => maskConfidentialReport(r as unknown as Record<string, unknown>, user.roleName));
+      return res.json({ data: maskedReports, total });
     } catch (err) {
       console.error('List reports error:', err);
       return res.status(500).json({ error: 'Internal server error' });
@@ -223,7 +244,7 @@ export const reportController = {
       if (['SafetyOfficer', 'Manager', 'Admin'].includes(user.roleName)) {
         payload.allowedStatuses = getAllowedTransitions(report.status);
       }
-      return res.json(payload);
+      return res.json(maskConfidentialReport(payload, user.roleName));
     } catch (err) {
       console.error('Get report error:', err);
       return res.status(500).json({ error: 'Internal server error' });

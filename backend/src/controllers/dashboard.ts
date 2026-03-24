@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { Prisma, ReportStatus, CaseLifecycleStatus } from '@prisma/client';
 import { z } from 'zod';
+import ExcelJS from 'exceljs';
 import { prisma } from '../lib/prisma';
 
 function baseWhere(user: { userId: number; roleName: string }) {
@@ -322,4 +323,119 @@ export const dashboardController = {
       return res.status(500).json({ error: 'Internal server error' });
     }
   },
+
+  async srbPackExcel(req: Request, res: Response) {
+    try {
+      const ids = String(req.query.ids || '')
+        .split(',')
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => !isNaN(n));
+      if (!ids.length) return res.status(400).json({ error: 'ids query required' });
+
+      const cases = await prisma.report.findMany({
+        where: { id: { in: ids } },
+        include: {
+          reportedBy: { select: { name: true } },
+          department: true,
+          caseType: true,
+          riskAssessments: { include: { assessedBy: { select: { name: true } } } },
+          actions: { include: { owner: { select: { name: true } } } },
+          approvals: { include: { signedBy: { select: { name: true } } } },
+        },
+      });
+
+      const wb = new ExcelJS.Workbook();
+      wb.creator = 'SMS Risk Analizi';
+      wb.created = new Date();
+
+      const caseSheet = wb.addWorksheet('Cases');
+      caseSheet.columns = [
+        { header: 'Report No', key: 'reportNo', width: 18 },
+        { header: 'Başlık', key: 'title', width: 35 },
+        { header: 'Durum', key: 'status', width: 18 },
+        { header: 'Risk Seviyesi', key: 'riskLevel', width: 15 },
+        { header: 'Departman', key: 'dept', width: 15 },
+        { header: 'Vaka Türü', key: 'caseType', width: 18 },
+        { header: 'Raporlayan', key: 'reporter', width: 20 },
+        { header: 'Tarih', key: 'date', width: 14 },
+      ];
+      for (const c of cases) {
+        caseSheet.addRow({
+          reportNo: c.reportNo,
+          title: c.title,
+          status: c.status,
+          riskLevel: c.currentRiskLevel ?? '—',
+          dept: c.department?.name ?? '',
+          caseType: c.caseType?.description ?? '',
+          reporter: c.reportedBy?.name ?? '',
+          date: c.createdAt.toISOString().slice(0, 10),
+        });
+      }
+      styleHeader(caseSheet);
+
+      const riskSheet = wb.addWorksheet('Risk Assessments');
+      riskSheet.columns = [
+        { header: 'Report No', key: 'reportNo', width: 18 },
+        { header: 'Tehlike', key: 'hazard', width: 30 },
+        { header: 'Severity', key: 'sev', width: 10 },
+        { header: 'Likelihood', key: 'lik', width: 12 },
+        { header: 'Risk Index', key: 'idx', width: 12 },
+        { header: 'Risk Level', key: 'level', width: 14 },
+        { header: 'Değerlendiren', key: 'assessor', width: 20 },
+      ];
+      for (const c of cases) {
+        for (const ra of c.riskAssessments) {
+          riskSheet.addRow({
+            reportNo: c.reportNo,
+            hazard: ra.hazardDescription,
+            sev: ra.severityCode,
+            lik: ra.likelihoodCode,
+            idx: ra.riskIndex,
+            level: ra.riskLevel,
+            assessor: ra.assessedBy?.name ?? '',
+          });
+        }
+      }
+      styleHeader(riskSheet);
+
+      const actionSheet = wb.addWorksheet('Actions');
+      actionSheet.columns = [
+        { header: 'Report No', key: 'reportNo', width: 18 },
+        { header: 'Aksiyon', key: 'desc', width: 35 },
+        { header: 'Sorumlu', key: 'owner', width: 20 },
+        { header: 'Durum', key: 'status', width: 14 },
+        { header: 'Son Tarih', key: 'due', width: 14 },
+        { header: 'Öncelik', key: 'priority', width: 10 },
+      ];
+      for (const c of cases) {
+        for (const a of c.actions) {
+          actionSheet.addRow({
+            reportNo: c.reportNo,
+            desc: a.description,
+            owner: a.owner?.name ?? '',
+            status: a.status,
+            due: a.dueDate ? new Date(a.dueDate).toISOString().slice(0, 10) : '',
+            priority: a.priority ?? '',
+          });
+        }
+      }
+      styleHeader(actionSheet);
+
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename=SRB_Pack_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      await wb.xlsx.write(res);
+      res.end();
+    } catch (err) {
+      console.error('srbPackExcel error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
 };
+
+function styleHeader(sheet: ExcelJS.Worksheet) {
+  const headerRow = sheet.getRow(1);
+  headerRow.font = { bold: true, size: 11 };
+  headerRow.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1F4E79' } };
+  headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 11 };
+  headerRow.alignment = { vertical: 'middle' };
+}

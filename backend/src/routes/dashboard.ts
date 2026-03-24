@@ -8,5 +8,6 @@ dashboardRoutes.get('/stats', dashboardController.stats);
 dashboardRoutes.get('/action-board', dashboardController.actionBoard);
 dashboardRoutes.get('/registers', requireRole('SafetyOfficer', 'Manager', 'Admin'), dashboardController.registers);
 dashboardRoutes.get('/srb-pack', requireRole('SafetyOfficer', 'Manager', 'Admin'), dashboardController.srbPack);
+dashboardRoutes.get('/srb-pack/excel', requireRole('SafetyOfficer', 'Manager', 'Admin'), dashboardController.srbPackExcel);
 dashboardRoutes.get('/lessons-learned', dashboardController.listLessons);
 dashboardRoutes.post('/lessons-learned', requireRole('SafetyOfficer', 'Manager', 'Admin'), dashboardController.promoteLesson);

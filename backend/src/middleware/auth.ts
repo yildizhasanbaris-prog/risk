@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
 import { prisma } from '../lib/prisma';
+import { setAuditUserId } from '../services/auditService';
 
 export interface AuthPayload {
   userId: number;
@@ -41,6 +42,7 @@ export async function authMiddleware(req: Request, res: Response, next: NextFunc
       roleId: user.roleId,
       roleName: user.role.name,
     };
+    setAuditUserId(user.id);
     next();
   } catch {
     return res.status(401).json({ error: 'Invalid or expired token' });
