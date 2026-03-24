@@ -30,6 +30,16 @@ Supabase → **Project Settings** → **Database** → **Connection string** →
 
 **Not:** `npx prisma migrate deploy` pooler üzerinde takılabilir; mutlaka `DIRECT_URL` (5432) kullanılır (`schema.prisma` içinde tanımlı).
 
+### 1.3 Bilgisayarımdan migrate olmuyor (IPv6 / 5432)
+
+Kendi PC’nizden Supabase **direct** host’a bağlanamıyorsanız migration’ı **GitHub Actions** ile çalıştırın (`.github/workflows/prisma-migrate-supabase.yml`):
+
+1. Bu repoyu GitHub’a push edin.
+2. Repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
+   - Name: `SUPABASE_PRISMA_URL`
+   - Value: Supabase **Direct** URI (port **5432**), sonuna `?sslmode=require` ekleyin.
+3. **Actions** → **Prisma migrate (Supabase)** → **Run workflow** → **Run workflow**.
+
 ---
 
 ## 2. Backend (Railway) Deploy

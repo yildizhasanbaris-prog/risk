@@ -1,0 +1,41 @@
+# Supabase şemasını günceller (Prisma migrate deploy).
+# Bilgisayarınızdan 5432/IPv6 ile bağlanamıyorsanız bu workflow GitHub sunucularından çalışır.
+#
+# Kurulum (bir kez):
+# 1) Kodu GitHub'a push edin (bu repo).
+# 2) GitHub → repo → Settings → Secrets and variables → Actions → New repository secret
+# 3) İsim: SUPABASE_PRISMA_URL
+#    Değer: Supabase → Project Settings → Database → Connection string → URI → Direct (port 5432)
+#            Sonuna ?sslmode=require ekleyin (örn. .../postgres?sslmode=require)
+# 4) Actions sekmesi → sol menüde "Prisma migrate (Supabase)" → Run workflow → Run workflow
+#
+name: Prisma migrate (Supabase)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend
+        run: npm ci
+
+      - name: Prisma migrate deploy
+        working-directory: backend
+        env:
+          # Tek secret: ikisine de aynı doğrudan (5432) URI yeterli
+          DATABASE_URL: ${{ secrets.SUPABASE_PRISMA_URL }}
+          DIRECT_URL: ${{ secrets.SUPABASE_PRISMA_URL }}
+        run: npx prisma migrate deploy
