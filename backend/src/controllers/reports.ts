@@ -1,8 +1,8 @@
 import { Request, Response } from 'express';
-import { PrismaClient, ReportStatus, MorStatus } from '@prisma/client';
+import { PrismaClient, ReportStatus, MorStatus, MandatoryVoluntary, OccurrenceClassification } from '@prisma/client';
 import { z } from 'zod';
 import ExcelJS from 'exceljs';
-import { canTransition, getAllowedTransitions } from '../services/StatusWorkflowService';
+import { canTransition, getAllowedTransitions, hasOpenActionsForClosure } from '../services/StatusWorkflowService';
 
 const prisma = new PrismaClient();
 
@@ -10,13 +10,23 @@ const createReportSchema = z.object({
   title: z.string().min(1),
   description: z.string().optional(),
   departmentId: z.number().optional(),
+  caseTypeId: z.number().optional(),
   location: z.string().optional(),
   aircraftReg: z.string().optional(),
   aircraftType: z.string().optional(),
   componentPn: z.string().optional(),
   componentSn: z.string().optional(),
+  workOrderRef: z.string().optional(),
+  taskRef: z.string().optional(),
+  customerRef: z.string().optional(),
+  subcontractorRef: z.string().optional(),
+  eventDate: z.union([z.string(), z.date()]).optional(),
   immediateActions: z.string().optional(),
+  personsInformed: z.string().optional(),
   categoryId: z.number().optional(),
+  confidential: z.boolean().optional(),
+  anonymous: z.boolean().optional(),
+  linkedCaseId: z.number().optional(),
 });
 
 const updateReportSchema = createReportSchema.partial();
@@ -34,6 +44,14 @@ const reviewUpdateSchema = z.object({
   status: z.nativeEnum(ReportStatus).optional(),
   comment: z.string().optional(),
   closureSummary: z.string().optional(),
+  caseTypeId: z.number().optional().nullable(),
+  mandatoryVoluntary: z.nativeEnum(MandatoryVoluntary).optional().nullable(),
+  occurrenceClassification: z.nativeEnum(OccurrenceClassification).optional().nullable(),
+  immediateContainmentRequired: z.boolean().optional().nullable(),
+  investigationRequired: z.boolean().optional().nullable(),
+  riskAssessmentRequired: z.boolean().optional().nullable(),
+  externalReportingRequired: z.boolean().optional().nullable(),
+  screeningComment: z.string().optional().nullable(),
 });
 
 async function generateReportNo(): Promise<string> {
@@ -132,8 +150,20 @@ export const reportController = {
           reportedBy: { select: { id: true, name: true, email: true } },
           department: { select: { id: true, code: true, name: true } },
           category: { select: { id: true, code: true, description: true } },
-          riskAssessments: { include: { assessedBy: { select: { id: true, name: true } } } },
-          actions: { include: { owner: { select: { id: true, name: true, email: true } } } },
+          caseType: { select: { id: true, code: true, description: true } },
+          screenedBy: { select: { id: true, name: true } },
+          hazards: { orderBy: { sortOrder: 'asc' } },
+          investigation: true,
+          effectivenessReview: true,
+          approvals: { include: { signedBy: { select: { id: true, name: true } } }, orderBy: { id: 'asc' }, take: 30 },
+          comments: { include: { user: { select: { id: true, name: true } } }, orderBy: { createdAt: 'asc' }, take: 50 },
+          riskAssessments: { include: { assessedBy: { select: { id: true, name: true } }, hazard: true } },
+          actions: {
+            include: {
+              owner: { select: { id: true, name: true, email: true } },
+              supportDept: { select: { id: true, code: true, name: true } },
+            },
+          },
         },
       });
       if (!report) return res.status(404).json({ error: 'Report not found' });
@@ -192,7 +222,9 @@ export const reportController = {
       const user = req.user!;
       if (user.roleName === 'Reporter') {
         if (existing.reportedByUserId !== user.userId) return res.status(403).json({ error: 'Access denied' });
-        if (existing.status !== ReportStatus.NEW) return res.status(403).json({ error: 'Report cannot be edited' });
+        if (existing.status !== ReportStatus.NEW && existing.status !== ReportStatus.DRAFT) {
+          return res.status(403).json({ error: 'Report cannot be edited' });
+        }
       }
 
       const report = await prisma.report.update({
@@ -234,6 +266,26 @@ export const reportController = {
           error: `Geçiş izni yok: ${existing.status} -> ${parsed.data.status}`,
           allowed: getAllowedTransitions(existing.status),
         });
+      }
+      if (parsed.data.status === ReportStatus.CLOSED) {
+        const actions = await prisma.action.findMany({ where: { reportId: id } });
+        if (hasOpenActionsForClosure(actions)) {
+          return res.status(400).json({ error: 'Açık aksiyon varken kapatılamaz' });
+        }
+        if (existing.status === ReportStatus.PENDING_EFFECTIVENESS_CHECK) {
+          const eff = await prisma.effectivenessReview.findUnique({ where: { reportId: id } });
+          if (!eff || eff.implementationVerified === null) {
+            return res.status(400).json({ error: 'Etkinlik incelemesi tamamlanmadan kapatılamaz' });
+          }
+        }
+        if (existing.currentRiskLevel === 'INTOLERABLE') {
+          const anyRiskAccept = await prisma.caseApproval.findFirst({
+            where: { reportId: id, approvalType: 'RISK_ACCEPTANCE', status: 'APPROVED' },
+          });
+          if (!anyRiskAccept) {
+            return res.status(400).json({ error: 'Kabul edilemez risk için risk kabul onayı gerekli' });
+          }
+        }
       }
       await prisma.$transaction([
         prisma.report.update({
@@ -302,12 +354,49 @@ export const reportController = {
       }
 
       if (parsed.data.closureSummary !== undefined) updateData.closureSummary = parsed.data.closureSummary;
+      if (parsed.data.caseTypeId !== undefined) updateData.caseTypeId = parsed.data.caseTypeId;
+      if (parsed.data.mandatoryVoluntary !== undefined) updateData.mandatoryVoluntary = parsed.data.mandatoryVoluntary;
+      if (parsed.data.occurrenceClassification !== undefined) updateData.occurrenceClassification = parsed.data.occurrenceClassification;
+      if (parsed.data.immediateContainmentRequired !== undefined) {
+        updateData.immediateContainmentRequired = parsed.data.immediateContainmentRequired;
+      }
+      if (parsed.data.investigationRequired !== undefined) updateData.investigationRequired = parsed.data.investigationRequired;
+      if (parsed.data.riskAssessmentRequired !== undefined) updateData.riskAssessmentRequired = parsed.data.riskAssessmentRequired;
+      if (parsed.data.externalReportingRequired !== undefined) {
+        updateData.externalReportingRequired = parsed.data.externalReportingRequired;
+      }
+      if (parsed.data.screeningComment !== undefined) updateData.screeningComment = parsed.data.screeningComment;
+      const screeningTouched =
+        parsed.data.mandatoryVoluntary !== undefined ||
+        parsed.data.occurrenceClassification !== undefined ||
+        parsed.data.immediateContainmentRequired !== undefined ||
+        parsed.data.investigationRequired !== undefined ||
+        parsed.data.riskAssessmentRequired !== undefined ||
+        parsed.data.externalReportingRequired !== undefined ||
+        parsed.data.screeningComment !== undefined;
+      if (screeningTouched) {
+        updateData.screenedByUserId = user.userId;
+        updateData.screenedAt = new Date();
+      }
+
       if (parsed.data.status !== undefined) {
         if (!canTransition(existing.status, parsed.data.status)) {
           return res.status(400).json({
             error: `Geçiş izni yok: ${existing.status} -> ${parsed.data.status}`,
             allowed: getAllowedTransitions(existing.status),
           });
+        }
+        if (parsed.data.status === ReportStatus.CLOSED) {
+          const actions = await prisma.action.findMany({ where: { reportId: id } });
+          if (hasOpenActionsForClosure(actions)) {
+            return res.status(400).json({ error: 'Açık aksiyon varken kapatılamaz' });
+          }
+          if (existing.status === ReportStatus.PENDING_EFFECTIVENESS_CHECK) {
+            const eff = await prisma.effectivenessReview.findUnique({ where: { reportId: id } });
+            if (!eff || eff.implementationVerified === null) {
+              return res.status(400).json({ error: 'Etkinlik incelemesi tamamlanmadan kapatılamaz' });
+            }
+          }
         }
         updateData.status = parsed.data.status;
         if (parsed.data.status === ReportStatus.CLOSED) {

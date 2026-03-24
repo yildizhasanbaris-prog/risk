@@ -18,6 +18,7 @@ export function ReportNewPage() {
     componentSn: '',
     immediateActions: '',
     categoryId: undefined as number | undefined,
+    caseTypeId: undefined as number | undefined,
   });
 
   const { data: departments } = useQuery({
@@ -27,6 +28,10 @@ export function ReportNewPage() {
   const { data: categories } = useQuery({
     queryKey: ['categories'],
     queryFn: () => lookupsApi.categories().then((r) => r.data),
+  });
+  const { data: caseTypes } = useQuery({
+    queryKey: ['case-types'],
+    queryFn: () => lookupsApi.caseTypes().then((r) => r.data),
   });
 
   const createMutation = useMutation({
@@ -50,6 +55,7 @@ export function ReportNewPage() {
       componentSn: form.componentSn || undefined,
       immediateActions: form.immediateActions || undefined,
       categoryId: form.categoryId,
+      caseTypeId: form.caseTypeId,
     });
   };
 
@@ -139,6 +145,18 @@ export function ReportNewPage() {
             >
               <option value="">Seçin</option>
               {categories?.map((c) => (
+                <option key={c.id} value={c.id}>{c.description}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: 20 }}>
+            <label>Case türü</label>
+            <select
+              value={form.caseTypeId ?? ''}
+              onChange={(e) => setForm((f) => ({ ...f, caseTypeId: e.target.value ? Number(e.target.value) : undefined }))}
+            >
+              <option value="">Seçin (opsiyonel)</option>
+              {caseTypes?.map((c) => (
                 <option key={c.id} value={c.id}>{c.description}</option>
               ))}
             </select>

@@ -1,18 +1,27 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reportsApi } from '../api/reports';
 
 const STATUS_LABELS: Record<string, string> = {
   NEW: 'Yeni',
+  DRAFT: 'Taslak',
+  SUBMITTED: 'Gönderildi',
   UNDER_REVIEW: 'İncelemede',
+  UNDER_SCREENING: 'Tarama / triage',
   NOT_SAFETY_RELATED: 'SMS Kapsamı Dışı',
   HIRM_REQUIRED: 'HIRM Gerekli',
   IN_HIRM: 'HIRM Yapılıyor',
   ACTION_PLANNING: 'Aksiyon Planlanıyor',
   ACTION_IN_PROGRESS: 'Aksiyon Uygulanıyor',
+  MITIGATION_IN_PROGRESS: 'Mitigasyon devam',
   PENDING_EFFECTIVENESS_CHECK: 'Etkililik Kontrolü Bekleniyor',
+  PENDING_APPROVAL: 'Onay bekleniyor',
+  INVESTIGATION_IN_PROGRESS: 'Soruşturma',
   CLOSED: 'Kapatıldı',
+  REOPENED: 'Yeniden açıldı',
+  CANCELLED: 'İptal',
+  DUPLICATE: 'Mükerrer',
 };
 
 export function ReportReviewPage() {
@@ -72,24 +81,13 @@ export function ReportReviewPage() {
   };
 
   if (isLoading || !report) {
-    return (
-      <div className="page">
-        <div style={{ textAlign: 'center', padding: 48, color: 'var(--color-text-muted)' }}>Yükleniyor...</div>
-      </div>
-    );
+    return <p style={{ color: 'var(--color-text-muted)' }}>Yükleniyor...</p>;
   }
 
   const allowed = report.allowedStatuses ?? [];
 
   return (
-    <div className="page">
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-        <h1 style={{ margin: 0 }}>Rapor İnceleme: {report.reportNo ?? report.id}</h1>
-        <Link to={`/reports/${reportId}`} className="btn btn-secondary" style={{ textDecoration: 'none' }}>
-          ← Detaya Dön
-        </Link>
-      </div>
-
+    <>
       <div className="card" style={{ marginBottom: 24, padding: 24 }}>
         <h3 style={{ marginBottom: 8 }}>{report.title}</h3>
         <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>{report.description ?? '-'}</p>
@@ -181,6 +179,6 @@ export function ReportReviewPage() {
           </p>
         )}
       </form>
-    </div>
+    </>
   );
 }

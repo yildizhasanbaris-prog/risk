@@ -8,15 +8,28 @@ const createSchema = z.object({
   description: z.string().min(1),
   ownerUserId: z.number(),
   dueDate: z.string().optional(),
+  revisedDueDate: z.string().optional(),
   riskAssessmentId: z.number().optional(),
+  supportDepartmentId: z.number().optional(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
+  evidenceRef: z.string().optional(),
+  escalation: z.string().optional(),
+  verificationMethod: z.string().optional(),
 });
 
 const updateSchema = z.object({
   description: z.string().min(1).optional(),
   ownerUserId: z.number().optional(),
   dueDate: z.string().optional(),
+  revisedDueDate: z.string().optional(),
+  supportDepartmentId: z.number().optional().nullable(),
+  priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
   status: z.enum(['PLANNED', 'IN_PROGRESS', 'DONE', 'CANCELLED']).optional(),
   effectivenessComment: z.string().optional(),
+  evidenceRef: z.string().optional(),
+  escalation: z.string().optional(),
+  verificationMethod: z.string().optional(),
+  smsManagerSignOff: z.boolean().optional(),
 });
 
 export const actionController = {
@@ -37,7 +50,10 @@ export const actionController = {
 
       const actions = await prisma.action.findMany({
         where: { reportId },
-        include: { owner: { select: { id: true, name: true, email: true } } },
+        include: {
+          owner: { select: { id: true, name: true, email: true } },
+          supportDept: { select: { id: true, code: true, name: true } },
+        },
         orderBy: { actionNo: 'asc' },
       });
       return res.json(actions);
@@ -69,7 +85,13 @@ export const actionController = {
           description: parsed.data.description,
           ownerUserId: parsed.data.ownerUserId,
           dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : undefined,
+          revisedDueDate: parsed.data.revisedDueDate ? new Date(parsed.data.revisedDueDate) : undefined,
           riskAssessmentId: parsed.data.riskAssessmentId,
+          supportDepartmentId: parsed.data.supportDepartmentId,
+          priority: parsed.data.priority,
+          evidenceRef: parsed.data.evidenceRef,
+          escalation: parsed.data.escalation,
+          verificationMethod: parsed.data.verificationMethod,
         },
         include: { owner: { select: { id: true, name: true, email: true } } },
       });
@@ -98,6 +120,7 @@ export const actionController = {
       const updateData: Record<string, unknown> = { ...parsed.data };
       if (parsed.data.status === 'DONE') updateData.completedAt = new Date();
       if (parsed.data.dueDate) updateData.dueDate = new Date(parsed.data.dueDate);
+      if (parsed.data.revisedDueDate) updateData.revisedDueDate = new Date(parsed.data.revisedDueDate);
 
       const action = await prisma.action.update({
         where: { id: actionId },
@@ -106,7 +129,10 @@ export const actionController = {
       });
 
       const report = await prisma.report.findUnique({ where: { id: reportId }, include: { actions: true } });
-      if (report && report.status === ReportStatus.ACTION_IN_PROGRESS) {
+      const inMitigation =
+        report &&
+        (report.status === ReportStatus.ACTION_IN_PROGRESS || report.status === ReportStatus.MITIGATION_IN_PROGRESS);
+      if (inMitigation) {
         const actionsAfterUpdate = report.actions.map((a) => (a.id === actionId ? action : a));
         const allDone = actionsAfterUpdate.every((a) => a.status === ActionStatus.DONE);
         if (allDone) {

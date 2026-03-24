@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reportsApi } from '../api/reports';
 import { actionsApi } from '../api/actions';
@@ -48,15 +48,10 @@ export function ReportActionsPage() {
     },
   });
 
-  if (!report) return <div className="page"><p>Yükleniyor...</p></div>;
+  if (!report) return <p style={{ color: 'var(--color-text-muted)' }}>Yükleniyor...</p>;
 
   return (
-    <div className="page">
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ margin: 0 }}>Aksiyon Planı: {report.reportNo ?? report.id}</h1>
-        <Link to={`/reports/${reportId}`} className="btn btn-secondary" style={{ textDecoration: 'none' }}>← Rapor Detayı</Link>
-      </div>
-
+    <>
       <div className="card" style={{ marginBottom: 24, padding: 24 }}>
         <h3 style={{ marginBottom: 8 }}>{report.title}</h3>
         <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Durum: {report.status}</p>
@@ -132,6 +127,6 @@ export function ReportActionsPage() {
           </table>
         )}
       </div>
-    </div>
+    </>
   );
 }

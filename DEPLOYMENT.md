@@ -19,12 +19,16 @@ Bu proje **frontend** ve **backend** ayrı deploy edilir. Supabase veritabanı, 
 3. **Transaction** (pooler, port 6543) veya **Session** (direct, port 5432) kopyala
 4. `[YOUR-PASSWORD]` kısmını proje oluştururken belirlediğin şifreyle değiştir
 
-**Transaction pooler (önerilen):**
+**Transaction pooler (uygulama / Railway için `DATABASE_URL`):**
 ```
-postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres
+postgresql://postgres.[PROJECT-REF]:[PASSWORD]@aws-0-[REGION].pooler.supabase.com:6543/postgres?pgbouncer=true
 ```
 
-**Not:** İlk migration için **Session** (direct, port 5432) kullan. Sonra uygulama için pooler (6543) kullanabilirsin.
+**Doğrudan bağlantı (`DIRECT_URL`, Prisma migrate için zorunlu):**  
+Supabase → **Project Settings** → **Database** → **Connection string** → **URI**, host `db.[PROJECT-REF].supabase.co`, port **5432** (Session / direct).  
+`.env` ve Railway’de hem `DATABASE_URL` (pooler) hem `DIRECT_URL` (5432) tanımlı olmalı. Yerel PostgreSQL kullanıyorsan `DIRECT_URL`’i `DATABASE_URL` ile **aynı** yap.
+
+**Not:** `npx prisma migrate deploy` pooler üzerinde takılabilir; mutlaka `DIRECT_URL` (5432) kullanılır (`schema.prisma` içinde tanımlı).
 
 ---
 
@@ -47,19 +51,24 @@ Express backend’i Railway’de çalıştır. Supabase PostgreSQL kullanır.
 
 | Key | Value |
 |-----|-------|
-| `DATABASE_URL` | Supabase connection string (pooler, port 6543) |
+| `DATABASE_URL` | Supabase **pooler** (port 6543, `?pgbouncer=true`) |
+| `DIRECT_URL` | Supabase **direct** (port 5432, host `db.*.supabase.co`) — migrate için |
 | `JWT_SECRET` | Güçlü rastgele string (örn. `openssl rand -hex 32`) |
 | `JWT_EXPIRES_IN` | `7d` |
 | `CORS_ORIGIN` | `https://your-app.vercel.app` (Vercel URL’i, sonra güncelle) |
 | `NODE_ENV` | `production` |
 
 ### 2.3 Prisma migration
-Railway’de ilk deploy’da migration çalışmalı. Veya lokalden:
+Railway’de `startCommand` artık `npx prisma migrate deploy && node dist/index.js` (bkz. `railway.json`); her deploy’da migration uygulanır. **Railway’de `DIRECT_URL` (5432) tanımlı olmalı.**
+
+Lokalden (`.env` içinde `DATABASE_URL` + `DIRECT_URL`):
 
 ```bash
 cd backend
-DATABASE_URL="postgresql://postgres.[ref]:[PASSWORD]@aws-0-xxx.pooler.supabase.com:6543/postgres" npx prisma migrate deploy
+npx prisma migrate deploy
 ```
+
+**Sadece pooler URL’in varsa:** `migrate deploy` takılabilir — Supabase’den **Direct connection** (port 5432) kopyalayıp `DIRECT_URL` olarak ekle.
 
 ### 2.4 Seed (ilk veri)
 ```bash

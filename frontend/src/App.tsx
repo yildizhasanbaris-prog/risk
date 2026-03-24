@@ -8,8 +8,14 @@ import { ReportDetailPage } from './pages/ReportDetailPage';
 import { ReportReviewPage } from './pages/ReportReviewPage';
 import { ReportHirmPage } from './pages/ReportHirmPage';
 import { ReportActionsPage } from './pages/ReportActionsPage';
+import { ReportInvestigationPage } from './pages/ReportInvestigationPage';
+import { ReportEffectivenessPage } from './pages/ReportEffectivenessPage';
+import { ReportApprovalsPage } from './pages/ReportApprovalsPage';
+import { ReportCommentsPage } from './pages/ReportCommentsPage';
+import { ReportChangePage } from './pages/ReportChangePage';
 import { DashboardPage } from './pages/DashboardPage';
 import { Layout } from './components/Layout';
+import { ReportCaseLayout } from './components/ReportCaseLayout';
 
 const queryClient = new QueryClient();
 
@@ -41,10 +47,17 @@ function AppRoutes() {
         <Route index element={<DashboardPage />} />
         <Route path="reports" element={<ReportListPage />} />
         <Route path="reports/new" element={<ReportNewPage />} />
-        <Route path="reports/:id/review" element={<ReportReviewPage />} />
-        <Route path="reports/:id/hirm" element={<ReportHirmPage />} />
-        <Route path="reports/:id/actions" element={<ReportActionsPage />} />
-        <Route path="reports/:id" element={<ReportDetailPage />} />
+        <Route path="reports/:id" element={<ReportCaseLayout />}>
+          <Route index element={<ReportDetailPage />} />
+          <Route path="review" element={<ReportReviewPage />} />
+          <Route path="investigation" element={<ReportInvestigationPage />} />
+          <Route path="hirm" element={<ReportHirmPage />} />
+          <Route path="actions" element={<ReportActionsPage />} />
+          <Route path="effectiveness" element={<ReportEffectivenessPage />} />
+          <Route path="approvals" element={<ReportApprovalsPage />} />
+          <Route path="comments" element={<ReportCommentsPage />} />
+          <Route path="change" element={<ReportChangePage />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

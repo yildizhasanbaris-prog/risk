@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reportsApi } from '../api/reports';
 import { riskAssessmentsApi } from '../api/riskAssessments';
@@ -90,22 +90,11 @@ export function ReportHirmPage() {
   };
 
   if (reportLoading || !report) {
-    return (
-      <div className="page">
-        <div style={{ textAlign: 'center', padding: 48, color: 'var(--color-text-muted)' }}>Yükleniyor...</div>
-      </div>
-    );
+    return <p style={{ color: 'var(--color-text-muted)' }}>Yükleniyor...</p>;
   }
 
   return (
-    <div className="page">
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-        <h1 style={{ margin: 0 }}>HIRM / Risk Analizi: {report.reportNo ?? report.id}</h1>
-        <Link to={`/reports/${reportId}`} className="btn btn-secondary" style={{ textDecoration: 'none' }}>
-          ← Rapor Detayı
-        </Link>
-      </div>
-
+    <>
       <div className="card" style={{ marginBottom: 24, padding: 24 }}>
         <h3 style={{ marginBottom: 8 }}>{report.title}</h3>
         <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>{report.description ?? '-'}</p>
@@ -312,6 +301,6 @@ export function ReportHirmPage() {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }

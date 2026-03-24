@@ -106,6 +106,38 @@ async function main() {
   }
   console.log('Categories created');
 
+  const caseTypeData = [
+    { code: 'OCCURRENCE', description: 'Occurrence / Event' },
+    { code: 'HAZARD', description: 'Hazard' },
+    { code: 'NEAR_MISS', description: 'Near miss' },
+    { code: 'HF_ISSUE', description: 'Human factors issue' },
+    { code: 'PROC_DEV', description: 'Procedural deviation' },
+    { code: 'SUBCONTRACTOR', description: 'Subcontractor safety' },
+    { code: 'AUDIT', description: 'Audit-related safety concern' },
+    { code: 'CHANGE', description: 'Management of change' },
+    { code: 'VOLUNTARY', description: 'Voluntary report' },
+  ];
+  for (const ct of caseTypeData) {
+    await prisma.caseType.upsert({ where: { code: ct.code }, update: {}, create: ct });
+  }
+  console.log('Case types created');
+
+  const extraRoles = [
+    'DepartmentReviewer',
+    'SMSManager',
+    'Investigator',
+    'ActionOwner',
+    'DepartmentManager',
+    'QualityManager',
+    'AccountableManager',
+    'SRBViewer',
+    'SRBApprover',
+  ];
+  for (const rn of extraRoles) {
+    await prisma.role.upsert({ where: { name: rn }, update: {}, create: { name: rn } });
+  }
+  console.log('Extended roles created');
+
   // Admin user (password: admin123)
   const adminRole = roles.find((r) => r.name === 'Admin')!;
   const adminDept = await prisma.department.findUnique({ where: { code: 'SMS' } });
@@ -141,17 +173,6 @@ async function main() {
   // Demo Reporter
   const reporterRole = roles.find((r) => r.name === 'Reporter')!;
   const lineDept = await prisma.department.findUnique({ where: { code: 'LINE' } });
-  await prisma.user.upsert({
-    where: { email: 'reporter@sms.local' },
-    update: {},
-    create: {
-      name: 'Test Reporter',
-      email: 'reporter@sms.local',
-      passwordHash,
-      departmentId: lineDept?.id,
-      roleId: reporterRole.id,
-    },
-  });
   const reporterUser = await prisma.user.upsert({
     where: { email: 'reporter@sms.local' },
     update: {},

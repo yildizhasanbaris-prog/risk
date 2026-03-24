@@ -27,6 +27,7 @@ export interface ReportCreate {
   componentSn?: string;
   immediateActions?: string;
   categoryId?: number;
+  caseTypeId?: number;
 }
 
 export interface ReportReviewUpdate {

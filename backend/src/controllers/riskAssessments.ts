@@ -5,12 +5,16 @@ const prisma = new PrismaClient();
 
 const createSchema = z.object({
   assessmentType: z.enum(['INITIAL', 'RESIDUAL', 'INTERMEDIATE']),
+  hazardId: z.number().optional(),
   hazardDescription: z.string().optional(),
   consequences: z.string().optional(),
   existingControls: z.string().optional(),
   proposedControls: z.string().optional(),
   severityCode: z.enum(['A', 'B', 'C', 'D', 'E']),
   likelihoodCode: z.number().min(1).max(5),
+  riskOwnerUserId: z.number().optional(),
+  acceptanceLevel: z.string().optional(),
+  reviewDueDate: z.string().optional(),
 });
 
 const updateSchema = createSchema.partial();
@@ -42,7 +46,11 @@ export const riskAssessmentController = {
 
       const assessments = await prisma.riskAssessment.findMany({
         where: { reportId },
-        include: { assessedBy: { select: { id: true, name: true } } },
+        include: {
+          assessedBy: { select: { id: true, name: true } },
+          hazard: true,
+          riskOwner: { select: { id: true, name: true } },
+        },
         orderBy: { assessedAt: 'desc' },
       });
       return res.json(assessments);
@@ -76,6 +84,7 @@ export const riskAssessmentController = {
       const assessment = await prisma.riskAssessment.create({
         data: {
           reportId,
+          hazardId: parsed.data.hazardId,
           assessmentType: parsed.data.assessmentType as AssessmentType,
           hazardDescription: parsed.data.hazardDescription,
           consequences: parsed.data.consequences,
@@ -85,6 +94,9 @@ export const riskAssessmentController = {
           likelihoodCode: parsed.data.likelihoodCode,
           riskIndex: risk.riskIndex,
           riskLevel: risk.riskLevel,
+          riskOwnerUserId: parsed.data.riskOwnerUserId,
+          acceptanceLevel: parsed.data.acceptanceLevel,
+          reviewDueDate: parsed.data.reviewDueDate ? new Date(parsed.data.reviewDueDate) : undefined,
           assessedByUserId: user.userId,
           assessedAt: new Date(),
         },

@@ -5,6 +5,7 @@ import { authRoutes } from './routes/auth';
 import { reportRoutes } from './routes/reports';
 import { lookupRoutes } from './routes/lookups';
 import { dashboardRoutes } from './routes/dashboard';
+import { complianceRoutes } from './routes/compliance';
 import { authMiddleware } from './middleware/auth';
 
 const app = express();
@@ -27,6 +28,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/reports', authMiddleware, reportRoutes);
 app.use('/api/lookups', authMiddleware, lookupRoutes);
 app.use('/api/dashboard', authMiddleware, dashboardRoutes);
+app.use('/api/compliance', authMiddleware, complianceRoutes);
 
 const port = config.port;
 app.listen(port, '0.0.0.0', () => {

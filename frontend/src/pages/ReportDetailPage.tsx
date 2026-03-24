@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { reportsApi } from '../api/reports';
 import { attachmentsApi } from '../api/attachments';
@@ -34,25 +34,14 @@ export function ReportDetailPage() {
   const in24h = Date.now() + 24 * 60 * 60 * 1000;
   const morWarning = report?.isMor && morDeadline && morDeadlineMs > Date.now() && morDeadlineMs < in24h;
 
-  if (isLoading || !report) {
-    return (
-      <div className="page">
-        <div style={{ textAlign: 'center', padding: 48, color: 'var(--color-text-muted)' }}>Yükleniyor...</div>
-      </div>
-    );
-  }
-
   const canReview = ['SafetyOfficer', 'Manager', 'Admin'].includes(user?.role ?? '');
 
-  return (
-    <div className="page">
-      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 16 }}>
-        <h1 style={{ margin: 0 }}>Rapor: {report.reportNo ?? report.id}</h1>
-        <Link to="/reports" className="btn btn-secondary" style={{ textDecoration: 'none' }}>
-          ← Listeye Dön
-        </Link>
-      </div>
+  if (isLoading || !report) {
+    return <p style={{ color: 'var(--color-text-muted)' }}>Yükleniyor...</p>;
+  }
 
+  return (
+    <>
       {morWarning && (
         <div style={{ marginBottom: 24, padding: 16, background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 'var(--radius-sm)', color: '#dc2626' }}>
           <strong>MOR uyarısı:</strong> Son teslim tarihi yaklaşıyor ({morDeadline ? new Date(morDeadline).toLocaleString('tr-TR') : ''})
@@ -130,18 +119,10 @@ export function ReportDetailPage() {
       </div>
 
       {canReview && (
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <Link to={`/reports/${report.id}/review`} className="btn" style={{ textDecoration: 'none' }}>
-            Rapor İnceleme / Durum Değiştir
-          </Link>
-          <Link to={`/reports/${report.id}/hirm`} className="btn btn-secondary" style={{ textDecoration: 'none' }}>
-            HIRM / Risk Analizi
-          </Link>
-          <Link to={`/reports/${report.id}/actions`} className="btn btn-secondary" style={{ textDecoration: 'none' }}>
-            Aksiyon Planı
-          </Link>
-        </div>
+        <p style={{ fontSize: 14, color: 'var(--color-text-muted)', margin: 0 }}>
+          İnceleme, risk ve aksiyonlar için üstteki sekmeleri kullanın.
+        </p>
       )}
-    </div>
+    </>
   );
 }
