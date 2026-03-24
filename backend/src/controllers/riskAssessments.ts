@@ -1,11 +1,12 @@
 import { Request, Response } from 'express';
-import { PrismaClient, AssessmentType } from '@prisma/client';
+import { AssessmentType } from '@prisma/client';
 import { z } from 'zod';
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
 
-const createSchema = z.object({
+const riskAssessmentFields = z.object({
   assessmentType: z.enum(['INITIAL', 'RESIDUAL', 'INTERMEDIATE']),
   hazardId: z.number().optional(),
+  hazardCategoryId: z.number().optional(),
   hazardDescription: z.string().optional(),
   consequences: z.string().optional(),
   existingControls: z.string().optional(),
@@ -17,7 +18,21 @@ const createSchema = z.object({
   reviewDueDate: z.string().optional(),
 });
 
-const updateSchema = createSchema.partial();
+const createSchema = riskAssessmentFields.superRefine((data, ctx) => {
+  if (data.assessmentType === 'INITIAL') {
+    if (data.riskOwnerUserId == null) {
+      ctx.addIssue({ code: 'custom', message: 'Risk kalemi için risk sahibi zorunlu', path: ['riskOwnerUserId'] });
+    }
+    if (!data.reviewDueDate?.trim()) {
+      ctx.addIssue({ code: 'custom', message: 'Risk gözden geçirme tarihi zorunlu', path: ['reviewDueDate'] });
+    }
+    if (!data.existingControls?.trim()) {
+      ctx.addIssue({ code: 'custom', message: 'Mevcut kontroller zorunlu', path: ['existingControls'] });
+    }
+  }
+});
+
+const updateSchema = riskAssessmentFields.partial();
 
 async function calculateRisk(severityCode: string, likelihoodCode: number) {
   const matrix = await prisma.riskMatrix.findUnique({
@@ -85,6 +100,7 @@ export const riskAssessmentController = {
         data: {
           reportId,
           hazardId: parsed.data.hazardId,
+          hazardCategoryId: parsed.data.hazardCategoryId,
           assessmentType: parsed.data.assessmentType as AssessmentType,
           hazardDescription: parsed.data.hazardDescription,
           consequences: parsed.data.consequences,
@@ -144,12 +160,19 @@ export const riskAssessmentController = {
 
       if (severityCode && likelihoodCode) {
         risk = await calculateRisk(severityCode, likelihoodCode);
+        if (!risk) {
+          return res.status(400).json({ error: 'Geçersiz şiddet/olasılık kombinasyonu — risk matrisi eşleşmedi' });
+        }
       }
 
+      const { reviewDueDate, ...restUpdate } = parsed.data;
       const assessment = await prisma.riskAssessment.update({
         where: { id: assessmentId },
         data: {
-          ...parsed.data,
+          ...restUpdate,
+          ...(reviewDueDate !== undefined && {
+            reviewDueDate: reviewDueDate ? new Date(reviewDueDate) : null,
+          }),
           ...(risk && {
             riskIndex: risk.riskIndex,
             riskLevel: risk.riskLevel,

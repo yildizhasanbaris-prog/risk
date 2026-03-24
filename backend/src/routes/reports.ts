@@ -21,6 +21,8 @@ reportRoutes.get('/:id/investigation', caseExtensionsController.getInvestigation
 reportRoutes.put('/:id/investigation', caseExtensionsController.upsertInvestigation);
 reportRoutes.get('/:id/effectiveness', caseExtensionsController.getEffectiveness);
 reportRoutes.put('/:id/effectiveness', caseExtensionsController.upsertEffectiveness);
+reportRoutes.get('/:id/case-review', caseExtensionsController.getCaseReview);
+reportRoutes.put('/:id/case-review', caseExtensionsController.upsertCaseReview);
 reportRoutes.get('/:id/approvals', caseExtensionsController.listApprovals);
 reportRoutes.post('/:id/approvals', caseExtensionsController.createApproval);
 reportRoutes.post('/:id/approvals/:approvalId/sign', caseExtensionsController.signApproval);
@@ -30,5 +32,6 @@ reportRoutes.get('/:id/change', complianceAndChangeController.getChange);
 reportRoutes.put('/:id/change', complianceAndChangeController.upsertChange);
 reportRoutes.get('/:id', reportController.getById);
 reportRoutes.put('/:id', reportController.update);
+reportRoutes.put('/:id/lifecycle', reportController.updateLifecycle);
 reportRoutes.post('/:id/status', reportController.updateStatus);
 reportRoutes.put('/:id/review', reportController.review);

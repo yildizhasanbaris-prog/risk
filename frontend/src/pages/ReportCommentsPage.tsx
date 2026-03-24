@@ -37,6 +37,11 @@ export function ReportCommentsPage() {
         <button type="button" className="btn" style={{ marginTop: 8 }} onClick={() => mut.mutate()} disabled={!body.trim() || mut.isPending}>
           Gönder
         </button>
+        {mut.isError && (
+          <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+            İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+          </p>
+        )}
       </div>
       <ul style={{ listStyle: 'none', padding: 0 }}>
         {rows.map((c: { id: number; body: string; createdAt: string; user: { name: string } }) => (

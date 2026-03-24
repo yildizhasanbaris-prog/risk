@@ -52,8 +52,10 @@ enum AssessmentType {
 
 enum ActionStatus {
   PLANNED
+  OPEN
   IN_PROGRESS
   DONE
+  VERIFIED
   CANCELLED
 }
 
@@ -105,6 +107,21 @@ enum ChangeCaseStatus {
   CLOSED
 }
 
+/// Kullanıcıya görünen sade lifecycle (spec §6); legacy `ReportStatus` ile paralel tutulur.
+enum CaseLifecycleStatus {
+  DRAFT
+  OPEN
+  ACTION_OPEN
+  MONITORING
+  CLOSED
+}
+
+/// Ana case ailesi: REPORT | CHANGE (spec §2)
+enum SafetyCaseKind {
+  REPORT
+  CHANGE
+}
+
 // ============ LOOKUP TABLES ============
 
 model Role {
@@ -154,6 +171,7 @@ model Category {
   code        String   @unique
   description String
   reports     Report[]
+  riskItemsAsHazardCategory RiskAssessment[] @relation("RiskItemHazardCategory")
 }
 
 model Department {
@@ -163,6 +181,13 @@ model Department {
   users          User[]
   reports        Report[]
   actionsSupport Action[] @relation("ActionSupportDept")
+}
+
+model Location {
+  id      Int      @id @default(autoincrement())
+  code    String   @unique
+  name    String
+  reports Report[]
 }
 
 // ============ USERS ============
@@ -193,6 +218,7 @@ model User {
   caseComments           CaseComment[]
   effectivenessReviews   EffectivenessReview[] @relation("EffectivenessReviewer")
   riskOwnerships         RiskAssessment[]      @relation("RiskOwner")
+  caseReviews            CaseReview[]          @relation("CaseReviewer")
 }
 
 // ============ SAFETY CASE (Report) ============
@@ -204,7 +230,13 @@ model Report {
   updatedAt        DateTime     @updatedAt @map("updated_at")
   reportedByUserId Int          @map("reported_by_user_id")
   departmentId     Int?         @map("department_id")
+  locationId       Int?         @map("location_id")
   caseTypeId       Int?         @map("case_type_id")
+  /// Spec: REPORT | CHANGE — UI’da SafetyCase; DB’de Report satırı.
+  safetyCaseKind   SafetyCaseKind? @map("safety_case_kind")
+  /// Spec §6 lifecycle; boşsa legacy `status` kullanılır.
+  lifecycleStatus  CaseLifecycleStatus? @map("lifecycle_status")
+  linkedComplianceRef String? @map("linked_compliance_ref")
   location         String?
   aircraftReg      String?      @map("aircraft_reg")
   aircraftType     String?      @map("aircraft_type")
@@ -245,9 +277,10 @@ model Report {
   screenedAt                   DateTime?                 @map("screened_at")
 
   reportedBy User        @relation("ReportReporter", fields: [reportedByUserId], references: [id])
-  department Department? @relation(fields: [departmentId], references: [id])
-  category   Category?   @relation(fields: [categoryId], references: [id])
-  caseType   CaseType?   @relation(fields: [caseTypeId], references: [id])
+  department   Department? @relation(fields: [departmentId], references: [id])
+  locationRef  Location?   @relation(fields: [locationId], references: [id])
+  category     Category?   @relation(fields: [categoryId], references: [id])
+  caseType     CaseType?   @relation(fields: [caseTypeId], references: [id])
   linkedCase Report?     @relation("LinkedCases", fields: [linkedCaseId], references: [id])
   linkedFrom Report[]    @relation("LinkedCases")
   screenedBy User?       @relation("ReportScreener", fields: [screenedByUserId], references: [id])
@@ -264,6 +297,42 @@ model Report {
   changeRecord        ChangeRecord?
   complianceFindings  ComplianceFinding[]
   lessonsLearned      LessonLearned[]
+  caseReview          CaseReview?
+  complianceLinks     ComplianceLink[]
+  notificationLogs    NotificationLog[] @relation("NotificationLogReport")
+
+  @@index([status])
+  @@index([departmentId])
+  @@index([lifecycleStatus])
+  @@index([createdAt])
+  @@index([reportedByUserId])
+}
+
+/// Spec §4.2 Initial Review — case başına tek kayıt (aktif inceleme).
+model CaseReview {
+  id                      Int      @id @default(autoincrement())
+  reportId                Int      @unique @map("report_id")
+  duplicateFlag           Boolean  @default(false) @map("duplicate_flag")
+  requiresInvestigation   Boolean  @default(false) @map("requires_investigation")
+  requiresRiskAssessment  Boolean  @default(true) @map("requires_risk_assessment")
+  requiresImmediateAction Boolean  @default(false) @map("requires_immediate_action")
+  caseTypeConfirmed       Boolean  @default(false) @map("case_type_confirmed")
+  reviewerUserId          Int      @map("reviewer_user_id")
+  reviewDate              DateTime @default(now()) @map("review_date")
+
+  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  reviewer User   @relation("CaseReviewer", fields: [reviewerUserId], references: [id])
+}
+
+/// Spec §4.8 — harici uyumluluk referansı (Compliance ailesi ile köprü).
+/// NOTE: Bu model henüz uygulama kodunda kullanılmıyor; API ihtiyacı belirlenince aktifleştirilecek.
+model ComplianceLink {
+  id                    Int    @id @default(autoincrement())
+  reportId              Int    @map("report_id")
+  externalComplianceRef String @map("external_compliance_ref")
+  safetyImpactNote      String? @map("safety_impact_note")
+
+  report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
 }
 
 model Hazard {
@@ -282,11 +351,13 @@ model RiskAssessment {
   id                Int            @id @default(autoincrement())
   reportId          Int            @map("report_id")
   hazardId          Int?           @map("hazard_id")
+  hazardCategoryId  Int?           @map("hazard_category_id")
   assessmentType    AssessmentType @map("assessment_type")
   hazardDescription String?        @map("hazard_description")
   consequences      String?
   existingControls  String?        @map("existing_controls")
   proposedControls  String?        @map("proposed_controls")
+  assumptions       String?
   severityCode      String?        @map("severity_code")
   likelihoodCode    Int?           @map("likelihood_code")
   riskIndex         String?        @map("risk_index")
@@ -294,21 +365,42 @@ model RiskAssessment {
   riskOwnerUserId   Int?           @map("risk_owner_user_id")
   acceptanceLevel   String?        @map("acceptance_level")
   reviewDueDate     DateTime?      @map("review_due_date")
+  residualSeverityCode   String?   @map("residual_severity_code")
+  residualLikelihoodCode Int?      @map("residual_likelihood_code")
+  residualRiskIndex      String?   @map("residual_risk_index")
+  residualRiskLevel      String?   @map("residual_risk_level")
   assessedByUserId  Int?           @map("assessed_by_user_id")
   assessedAt        DateTime?      @map("assessed_at")
 
-  report     Report   @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  hazard     Hazard?  @relation(fields: [hazardId], references: [id], onDelete: SetNull)
-  assessedBy User?    @relation(fields: [assessedByUserId], references: [id])
-  riskOwner  User?    @relation("RiskOwner", fields: [riskOwnerUserId], references: [id])
-  actions    Action[]
+  report         Report    @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  hazard         Hazard?   @relation(fields: [hazardId], references: [id], onDelete: SetNull)
+  hazardCategory Category? @relation("RiskItemHazardCategory", fields: [hazardCategoryId], references: [id])
+  assessedBy    User?     @relation(fields: [assessedByUserId], references: [id])
+  riskOwner      User?     @relation("RiskOwner", fields: [riskOwnerUserId], references: [id])
+  actions        Action[]
+  caseApprovals  CaseApproval[]
+  reportAttachments ReportAttachment[] @relation("AttachmentRiskAssessment")
+}
+
+model ActionType {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  description String
+  isActive    Boolean  @default(true) @map("is_active")
+  actions     Action[]
 }
 
 model Action {
   id                   Int            @id @default(autoincrement())
   reportId             Int            @map("report_id")
   riskAssessmentId     Int?           @map("risk_assessment_id")
+  actionTypeId         Int?           @map("action_type_id")
   actionNo             Int            @map("action_no")
+  /// Spec: SMS-2026-001-M01 — kullanıcıya görünür kod (opsiyonel, API üretebilir).
+  mitigationDisplayNo  String?        @unique @map("mitigation_display_no")
+  /// Spec: ana rapor no ile izlenebilirlik (denormalize).
+  linkedReportNo       String?        @map("linked_report_no")
+  title                String?
   description          String
   ownerUserId          Int            @map("owner_user_id")
   supportDepartmentId  Int?           @map("support_department_id")
@@ -325,13 +417,23 @@ model Action {
 
   report         Report          @relation(fields: [reportId], references: [id], onDelete: Cascade)
   riskAssessment RiskAssessment? @relation(fields: [riskAssessmentId], references: [id])
+  actionType     ActionType?     @relation(fields: [actionTypeId], references: [id])
   owner          User            @relation("ActionOwner", fields: [ownerUserId], references: [id])
   supportDept    Department?     @relation("ActionSupportDept", fields: [supportDepartmentId], references: [id])
+  caseApprovals  CaseApproval[]
+  reportAttachments ReportAttachment[] @relation("AttachmentAction")
+
+  @@index([reportId])
+  @@index([ownerUserId])
+  @@index([status])
+  @@index([dueDate])
 }
 
 model ReportAttachment {
   id               Int      @id @default(autoincrement())
   reportId         Int      @map("report_id")
+  riskAssessmentId Int?     @map("risk_assessment_id")
+  actionId         Int?     @map("action_id")
   filePath         String   @map("file_path")
   fileName         String   @map("file_name")
   mimeType         String?  @map("mime_type")
@@ -339,7 +441,9 @@ model ReportAttachment {
   uploadedAt       DateTime @default(now()) @map("uploaded_at")
   version          Int      @default(1)
 
-  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report           Report           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  riskAssessment   RiskAssessment?  @relation("AttachmentRiskAssessment", fields: [riskAssessmentId], references: [id], onDelete: SetNull)
+  linkedAction     Action?          @relation("AttachmentAction", fields: [actionId], references: [id], onDelete: SetNull)
   uploader User   @relation(fields: [uploadedByUserId], references: [id])
 }
 
@@ -364,10 +468,15 @@ model EffectivenessReview {
   id                     Int       @id @default(autoincrement())
   reportId               Int       @unique @map("report_id")
   implementationVerified Boolean?  @map("implementation_verified")
+  evidenceChecked        Boolean?  @map("evidence_checked")
   controlEffective       Boolean?  @map("control_effective")
   repeatEvent            Boolean?  @map("repeat_event")
   spiTrendNote           String?   @map("spi_trend_note")
   residualRiskReduced    Boolean?  @map("residual_risk_reduced")
+  residualSeverityCode   String?   @map("residual_severity_code")
+  residualLikelihoodCode Int?      @map("residual_likelihood_code")
+  residualRiskIndex      String?   @map("residual_risk_index")
+  residualRiskLevel      String?   @map("residual_risk_level")
   furtherActionRequired  Boolean?  @map("further_action_required")
   reviewerComment        String?   @map("reviewer_comment")
   reviewedByUserId       Int?      @map("reviewed_by_user_id")
@@ -377,9 +486,19 @@ model EffectivenessReview {
   reviewedBy User?  @relation("EffectivenessReviewer", fields: [reviewedByUserId], references: [id])
 }
 
+model ApprovalRoute {
+  id          Int            @id @default(autoincrement())
+  code        String         @unique
+  label       String
+  approvals   CaseApproval[]
+}
+
 model CaseApproval {
   id               Int            @id @default(autoincrement())
   reportId         Int            @map("report_id")
+  approvalRouteId  Int?           @map("approval_route_id")
+  riskAssessmentId Int?           @map("risk_assessment_id")
+  actionId         Int?           @map("action_id")
   approvalType     ApprovalType   @map("approval_type")
   status           ApprovalStatus @default(PENDING)
   requiredRoleHint String?        @map("required_role_hint")
@@ -387,8 +506,73 @@ model CaseApproval {
   signedAt         DateTime?      @map("signed_at")
   comment          String?
 
-  report   Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  report           Report           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  approvalRoute    ApprovalRoute?   @relation(fields: [approvalRouteId], references: [id], onDelete: SetNull)
+  riskAssessment   RiskAssessment?  @relation(fields: [riskAssessmentId], references: [id], onDelete: SetNull)
+  action           Action?          @relation(fields: [actionId], references: [id], onDelete: SetNull)
+
+  @@index([reportId])
+  @@index([approvalType, status])
   signedBy User?  @relation(fields: [signedByUserId], references: [id])
+}
+
+model RiskAcceptanceRule {
+  id                        Int     @id @default(autoincrement())
+  riskLevel                 String  @map("risk_level")
+  acceptingRoleName         String  @map("accepting_role_name")
+  responseTimeHours         Int?    @map("response_time_hours")
+  secondaryApproverRequired Boolean @default(false) @map("secondary_approver_required")
+  escalationRoleName        String? @map("escalation_role_name")
+  sortOrder                 Int     @default(0) @map("sort_order")
+
+  @@map("risk_acceptance_rules")
+}
+
+model NotificationTemplate {
+  id              Int    @id @default(autoincrement())
+  templateKey     String @unique @map("template_key")
+  subjectTemplate String @map("subject_template")
+  bodyTemplate    String @map("body_template")
+
+  @@map("notification_templates")
+}
+
+/// NOTE: Bu model henüz uygulama kodunda kullanılmıyor ve seed'lenmedi; bildirim yönlendirme akışı tamamlanınca aktifleştirilecek.
+model NotificationRecipientRule {
+  id            Int    @id @default(autoincrement())
+  eventCode     String @map("event_code")
+  recipientKind String @map("recipient_kind")
+  config        Json?
+
+  @@index([eventCode])
+  @@map("notification_recipient_rules")
+}
+
+model HfTaxonomy {
+  id          Int    @id @default(autoincrement())
+  code        String @unique
+  description String
+  sortOrder   Int    @default(0) @map("sort_order")
+
+  @@map("hf_taxonomy")
+}
+
+model RecordRetentionRule {
+  id            Int    @id @default(autoincrement())
+  entityType    String @map("entity_type")
+  retentionDays Int    @map("retention_days")
+  notes         String?
+
+  @@map("record_retention_rules")
+}
+
+model ConfidentialityRule {
+  id          Int     @id @default(autoincrement())
+  code        String  @unique
+  description String
+  maskSubject Boolean @default(true) @map("mask_subject")
+
+  @@map("confidentiality_rules")
 }
 
 model CaseComment {
@@ -406,9 +590,20 @@ model ChangeRecord {
   id                   Int              @id @default(autoincrement())
   reportId             Int              @unique @map("report_id")
   changeType           String           @map("change_type")
+  /// Spec: INITIAL_WORKSHOP_SETUP, New Equipment, …
+  changeSubtype        String?          @map("change_subtype")
+  changeScope          String?          @map("change_scope")
   description          String?
+  stakeholders         String?
   status               ChangeCaseStatus @default(DRAFT)
   transitionalRiskNote String?          @map("transitional_risk_note")
+  goLiveDecision       String?          @map("go_live_decision")
+  postImplementationReview String?    @map("post_implementation_review")
+  assumptionsValidated Boolean?         @map("assumptions_validated")
+  impactOnPreviousRiskAssessments String? @map("impact_on_previous_risk_assessments")
+  impactOnExistingHazards String?      @map("impact_on_existing_hazards")
+  trainingCompetenceImpact String?     @map("training_competence_impact")
+  cumulativeEffectNote String?        @map("cumulative_effect_note")
 
   report Report @relation(fields: [reportId], references: [id], onDelete: Cascade)
 }
@@ -448,6 +643,10 @@ model AuditLog {
   newValue   Json?    @map("new_value")
 
   user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([timestamp])
 }
 
 model LessonLearned {
@@ -459,4 +658,43 @@ model LessonLearned {
   promotedAt DateTime @default(now()) @map("promoted_at")
 
   report Report? @relation(fields: [reportId], references: [id], onDelete: SetNull)
+}
+
+// ============ NOTIFICATION ENGINE (spec §7 — iskelet) ============
+
+model NotificationRule {
+  id          Int     @id @default(autoincrement())
+  eventCode   String  @unique @map("event_code")
+  isActive    Boolean @default(true) @map("is_active")
+  templateKey String? @map("template_key")
+  config      Json?
+
+  @@map("notification_rules")
+}
+
+model NotificationQueue {
+  id          Int       @id @default(autoincrement())
+  eventCode   String    @map("event_code")
+  payload     Json
+  status      String    @default("PENDING")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  processedAt DateTime? @map("processed_at")
+
+  @@index([status, createdAt])
+  @@map("notification_queue")
+}
+
+model NotificationLog {
+  id          Int      @id @default(autoincrement())
+  eventCode   String   @map("event_code")
+  recipient   String?
+  subject     String?
+  bodyPreview String?  @map("body_preview")
+  caseId      Int?     @map("case_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  report Report? @relation("NotificationLogReport", fields: [caseId], references: [id], onDelete: SetNull)
+
+  @@index([caseId])
+  @@map("notification_log")
 }

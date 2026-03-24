@@ -70,9 +70,16 @@ export function ReportInvestigationPage() {
         </div>
       ))}
       {canEdit && (
-        <button type="button" className="btn" onClick={() => mut.mutate()} disabled={mut.isPending}>
-          {mut.isPending ? 'Kaydediliyor...' : 'Kaydet'}
-        </button>
+        <>
+          <button type="button" className="btn" onClick={() => mut.mutate()} disabled={mut.isPending}>
+            {mut.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+          </button>
+          {mut.isError && (
+            <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+              İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

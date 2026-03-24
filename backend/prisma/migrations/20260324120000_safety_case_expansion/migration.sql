@@ -67,7 +67,6 @@ ALTER TABLE "RiskAssessment" ADD COLUMN IF NOT EXISTS "hazard_id" INTEGER;
 ALTER TABLE "RiskAssessment" ADD COLUMN IF NOT EXISTS "risk_owner_user_id" INTEGER;
 ALTER TABLE "RiskAssessment" ADD COLUMN IF NOT EXISTS "acceptance_level" TEXT;
 ALTER TABLE "RiskAssessment" ADD COLUMN IF NOT EXISTS "review_due_date" TIMESTAMP(3);
-ALTER TABLE "RiskAssessment" ADD COLUMN IF NOT EXISTS "risk_owner_user_id" INTEGER;
 
 -- Action extensions
 ALTER TABLE "Action" ADD COLUMN IF NOT EXISTS "support_department_id" INTEGER;

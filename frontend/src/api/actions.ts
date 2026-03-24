@@ -4,6 +4,7 @@ export interface Action {
   id: number;
   reportId: number;
   actionNo: number;
+  mitigationDisplayNo?: string | null;
   description: string;
   ownerUserId: number;
   dueDate: string | null;
@@ -15,8 +16,26 @@ export interface Action {
 
 export const actionsApi = {
   list: (reportId: number) => api.get<Action[]>(`/reports/${reportId}/actions`),
-  create: (reportId: number, data: { description: string; ownerUserId: number; dueDate?: string }) =>
-    api.post<Action>(`/reports/${reportId}/actions`, data),
-  update: (reportId: number, actionId: number, data: Partial<{ description: string; ownerUserId: number; dueDate: string; status: string; effectivenessComment: string }>) =>
-    api.put<Action>(`/reports/${reportId}/actions/${actionId}`, data),
+  create: (
+    reportId: number,
+    data: {
+      description: string;
+      ownerUserId: number;
+      dueDate: string;
+      riskAssessmentId: number;
+      actionTypeId?: number;
+      title?: string;
+    },
+  ) => api.post<Action>(`/reports/${reportId}/actions`, data),
+  update: (
+    reportId: number,
+    actionId: number,
+    data: Partial<{
+      description: string;
+      ownerUserId: number;
+      dueDate: string;
+      status: string;
+      effectivenessComment: string;
+    }>,
+  ) => api.put<Action>(`/reports/${reportId}/actions/${actionId}`, data),
 };

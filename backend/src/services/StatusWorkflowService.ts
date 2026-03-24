@@ -85,10 +85,10 @@ export function getAllowedTransitions(from: ReportStatus): ReportStatus[] {
   return ALLOWED_TRANSITIONS[from] ?? [];
 }
 
-/** Block closure if open/overdue actions exist */
+/** Block closure unless mitigations are DONE, VERIFIED, or CANCELLED (spec §6.2) */
 export function hasOpenActionsForClosure(actions: { status: string; dueDate: Date | null; revisedDueDate: Date | null }[]): boolean {
-  const open = actions.filter((a) => a.status !== 'DONE' && a.status !== 'CANCELLED');
-  return open.length > 0;
+  const terminal = new Set(['DONE', 'VERIFIED', 'CANCELLED']);
+  return actions.some((a) => !terminal.has(a.status));
 }
 
 export function hasOverdueActions(actions: { status: string; dueDate: Date | null; revisedDueDate: Date | null }[]): boolean {

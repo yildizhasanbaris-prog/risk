@@ -11,8 +11,16 @@ export const caseApi = {
   saveEffectiveness: (reportId: number, body: Record<string, unknown>) =>
     api.put(`/reports/${reportId}/effectiveness`, body).then((r) => r.data),
   listApprovals: (reportId: number) => api.get(`/reports/${reportId}/approvals`).then((r) => r.data),
-  createApproval: (reportId: number, body: { approvalType: string; requiredRoleHint?: string }) =>
-    api.post(`/reports/${reportId}/approvals`, body).then((r) => r.data),
+  createApproval: (
+    reportId: number,
+    body: {
+      approvalType: string;
+      requiredRoleHint?: string;
+      approvalRouteId?: number;
+      riskAssessmentId?: number;
+      actionId?: number;
+    },
+  ) => api.post(`/reports/${reportId}/approvals`, body).then((r) => r.data),
   signApproval: (reportId: number, approvalId: number, body: { status: string; comment?: string }) =>
     api.post(`/reports/${reportId}/approvals/${approvalId}/sign`, body).then((r) => r.data),
   listComments: (reportId: number) => api.get(`/reports/${reportId}/comments`).then((r) => r.data),
@@ -21,6 +29,9 @@ export const caseApi = {
   getChange: (reportId: number) => api.get(`/reports/${reportId}/change`).then((r) => r.data),
   saveChange: (reportId: number, body: Record<string, unknown>) =>
     api.put(`/reports/${reportId}/change`, body).then((r) => r.data),
+  getCaseReview: (reportId: number) => api.get(`/reports/${reportId}/case-review`).then((r) => r.data),
+  saveCaseReview: (reportId: number, body: Record<string, unknown>) =>
+    api.put(`/reports/${reportId}/case-review`, body).then((r) => r.data),
 };
 
 export const complianceApi = {

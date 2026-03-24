@@ -22,6 +22,14 @@ export function ReportHirmPage() {
     likelihoodCode: 0 as number,
   });
   const [previewRisk, setPreviewRisk] = useState<{ riskIndex: string; riskLevel: string } | null>(null);
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState({
+    hazardDescription: '',
+    existingControls: '',
+    proposedControls: '',
+    severityCode: '' as '' | 'A' | 'B' | 'C' | 'D' | 'E',
+    likelihoodCode: 0 as number,
+  });
 
   const canEdit = ['SafetyOfficer', 'Manager', 'Admin'].includes(user?.role ?? '');
 
@@ -62,6 +70,21 @@ export function ReportHirmPage() {
         likelihoodCode: 0,
       });
       setPreviewRisk(null);
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({
+      assessmentId,
+      data,
+    }: {
+      assessmentId: number;
+      data: Parameters<typeof riskAssessmentsApi.update>[2];
+    }) => riskAssessmentsApi.update(reportId, assessmentId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['report', reportId] });
+      queryClient.invalidateQueries({ queryKey: ['report', reportId, 'risk-assessments'] });
+      setEditingId(null);
     },
   });
 
@@ -258,46 +281,192 @@ export function ReportHirmPage() {
           <p style={{ color: 'var(--color-text-muted)' }}>Henüz risk değerlendirmesi yok.</p>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {assessments.map((a) => (
-              <div
-                key={a.id}
-                style={{
-                  padding: 16,
-                  border: '1px solid var(--color-border)',
-                  borderRadius: 'var(--radius-sm)',
-                }}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                  <strong>{a.assessmentType}</strong>
-                  <span
-                    style={{
-                      padding: '4px 10px',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: 12,
-                      fontWeight: 600,
-                      background:
-                        a.riskLevel === 'INTOLERABLE'
-                          ? '#fef2f2'
-                          : a.riskLevel === 'TOLERABLE'
-                            ? '#fffbeb'
-                            : '#f0fdf4',
-                      color:
-                        a.riskLevel === 'INTOLERABLE'
-                          ? '#dc2626'
-                          : a.riskLevel === 'TOLERABLE'
-                            ? '#d97706'
-                            : '#059669',
-                    }}
-                  >
-                    {a.riskIndex ?? '-'} - {a.riskLevel ?? '-'}
-                  </span>
+            {assessments.map((a) => {
+              const isEditing = editingId === a.id;
+              return (
+                <div
+                  key={a.id}
+                  style={{
+                    padding: 16,
+                    border: '1px solid var(--color-border)',
+                    borderRadius: 'var(--radius-sm)',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8, gap: 12 }}>
+                    <strong>{a.assessmentType}</strong>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          background:
+                            a.riskLevel === 'INTOLERABLE'
+                              ? '#fef2f2'
+                              : a.riskLevel === 'TOLERABLE'
+                                ? '#fffbeb'
+                                : '#f0fdf4',
+                          color:
+                            a.riskLevel === 'INTOLERABLE'
+                              ? '#dc2626'
+                              : a.riskLevel === 'TOLERABLE'
+                                ? '#d97706'
+                                : '#059669',
+                        }}
+                      >
+                        {a.riskIndex ?? '-'} - {a.riskLevel ?? '-'}
+                      </span>
+                      {canEdit && !isEditing && (
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ fontSize: 13, padding: '6px 12px' }}
+                          onClick={() => {
+                            setEditingId(a.id);
+                            setEditForm({
+                              hazardDescription: a.hazardDescription ?? '',
+                              existingControls: a.existingControls ?? '',
+                              proposedControls: a.proposedControls ?? '',
+                              severityCode: (a.severityCode as '' | 'A' | 'B' | 'C' | 'D' | 'E') || '',
+                              likelihoodCode: a.likelihoodCode ?? 0,
+                            });
+                            updateMutation.reset();
+                          }}
+                        >
+                          Düzenle
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {isEditing ? (
+                    <>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+                        <div>
+                          <label>Severity (A-E)</label>
+                          <select
+                            value={editForm.severityCode}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                severityCode: (e.target.value || '') as '' | 'A' | 'B' | 'C' | 'D' | 'E',
+                              }))
+                            }
+                          >
+                            <option value="">Seçin</option>
+                            {severityLevels.map((s) => (
+                              <option key={s.id} value={s.code}>
+                                {s.code} - {s.description}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label>Likelihood (1-5)</label>
+                          <select
+                            value={editForm.likelihoodCode || ''}
+                            onChange={(e) =>
+                              setEditForm((f) => ({
+                                ...f,
+                                likelihoodCode: e.target.value ? parseInt(e.target.value, 10) : 0,
+                              }))
+                            }
+                          >
+                            <option value="">Seçin</option>
+                            {likelihoodLevels.map((l) => (
+                              <option key={l.id} value={l.code}>
+                                {l.code} - {l.description}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <label>Tehlike tanımı</label>
+                        <textarea
+                          value={editForm.hazardDescription}
+                          onChange={(e) => setEditForm((f) => ({ ...f, hazardDescription: e.target.value }))}
+                          rows={2}
+                        />
+                      </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <label>Mevcut kontroller</label>
+                        <textarea
+                          value={editForm.existingControls}
+                          onChange={(e) => setEditForm((f) => ({ ...f, existingControls: e.target.value }))}
+                          rows={2}
+                        />
+                      </div>
+                      <div style={{ marginBottom: 16 }}>
+                        <label>Önerilen kontroller</label>
+                        <textarea
+                          value={editForm.proposedControls}
+                          onChange={(e) => setEditForm((f) => ({ ...f, proposedControls: e.target.value }))}
+                          rows={2}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          className="btn"
+                          disabled={updateMutation.isPending || !editForm.severityCode || !editForm.likelihoodCode}
+                          onClick={() =>
+                            updateMutation.mutate({
+                              assessmentId: a.id,
+                              data: {
+                                hazardDescription: editForm.hazardDescription || undefined,
+                                existingControls: editForm.existingControls || undefined,
+                                proposedControls: editForm.proposedControls || undefined,
+                                severityCode: editForm.severityCode as 'A' | 'B' | 'C' | 'D' | 'E',
+                                likelihoodCode: editForm.likelihoodCode,
+                              },
+                            })
+                          }
+                        >
+                          {updateMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          disabled={updateMutation.isPending}
+                          onClick={() => {
+                            setEditingId(null);
+                            updateMutation.reset();
+                          }}
+                        >
+                          İptal
+                        </button>
+                      </div>
+                      {updateMutation.isError && (
+                        <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>Güncelleme hatası.</p>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <p style={{ margin: '4px 0', fontSize: 13, color: 'var(--color-text-muted)' }}>
+                        Severity: {a.severityCode ?? '-'} · Likelihood: {a.likelihoodCode ?? '-'}
+                      </p>
+                      {a.hazardDescription ? (
+                        <p style={{ margin: '4px 0', fontSize: 14 }}>{a.hazardDescription}</p>
+                      ) : (
+                        <p style={{ margin: '4px 0', fontSize: 14, color: 'var(--color-text-muted)' }}>Tehlike tanımı yok.</p>
+                      )}
+                      {a.existingControls && (
+                        <p style={{ margin: '8px 0 4px', fontSize: 12, fontWeight: 600 }}>Mevcut kontroller</p>
+                      )}
+                      {a.existingControls && <p style={{ margin: '0 0 8px', fontSize: 14 }}>{a.existingControls}</p>}
+                      {a.proposedControls && (
+                        <p style={{ margin: '8px 0 4px', fontSize: 12, fontWeight: 600 }}>Önerilen kontroller</p>
+                      )}
+                      {a.proposedControls && <p style={{ margin: '0 0 8px', fontSize: 14 }}>{a.proposedControls}</p>}
+                      <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
+                        {a.assessedBy?.name} - {a.assessedAt ? new Date(a.assessedAt).toLocaleString('tr-TR') : '-'}
+                      </p>
+                    </>
+                  )}
                 </div>
-                {a.hazardDescription && <p style={{ margin: '4px 0', fontSize: 14 }}>{a.hazardDescription}</p>}
-                <p style={{ margin: 0, fontSize: 12, color: 'var(--color-text-muted)' }}>
-                  {a.assessedBy?.name} - {a.assessedAt ? new Date(a.assessedAt).toLocaleString('tr-TR') : '-'}
-                </p>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

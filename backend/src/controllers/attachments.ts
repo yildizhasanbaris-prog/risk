@@ -1,10 +1,8 @@
 import { Request, Response } from 'express';
 import path from 'path';
 import fs from 'fs';
-import { PrismaClient } from '@prisma/client';
 import { config } from '../config';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
 
 export const attachmentController = {
   async list(req: Request, res: Response) {
@@ -43,7 +41,11 @@ export const attachmentController = {
       const user = req.user!;
       const report = await prisma.report.findUnique({ where: { id: reportId } });
       if (!report) return res.status(404).json({ error: 'Report not found' });
-      if (user.roleName === 'Reporter' && report.reportedByUserId !== user.userId) return res.status(403).json({ error: 'Access denied' });
+      if (user.roleName === 'Reporter') {
+        const u = await prisma.user.findUnique({ where: { id: user.userId } });
+        const canUpload = report.reportedByUserId === user.userId || (u?.departmentId && report.departmentId === u.departmentId);
+        if (!canUpload) return res.status(403).json({ error: 'Access denied' });
+      }
 
       const attachment = await prisma.reportAttachment.create({
         data: {

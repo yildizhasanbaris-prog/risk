@@ -104,9 +104,16 @@ export function ReportEffectivenessPage() {
         <textarea style={{ width: '100%', marginTop: 4 }} value={form.reviewerComment} onChange={(e) => setForm((f) => ({ ...f, reviewerComment: e.target.value }))} disabled={!canEdit} />
       </div>
       {canEdit && (
-        <button type="button" className="btn" onClick={() => mut.mutate()} disabled={mut.isPending}>
-          Kaydet
-        </button>
+        <>
+          <button type="button" className="btn" onClick={() => mut.mutate()} disabled={mut.isPending}>
+            Kaydet
+          </button>
+          {mut.isError && (
+            <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+              İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+            </p>
+          )}
+        </>
       )}
     </div>
   );

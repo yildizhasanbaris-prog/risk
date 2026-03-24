@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Safety Case / SMS — Kullanım Sunumu</title>
+  <style>
+    :root {
+      --text: #0f172a;
+      --muted: #475569;
+      --border: #e2e8f0;
+      --accent: #0d9488;
+      --bg: #ffffff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.55;
+      margin: 0;
+      padding: 0;
+      font-size: 11pt;
+    }
+    .wrap { max-width: 800px; margin: 0 auto; padding: 28px 32px 48px; }
+    h1 {
+      font-size: 1.65rem;
+      margin: 0 0 8px;
+      color: var(--text);
+      border-bottom: 3px solid var(--accent);
+      padding-bottom: 12px;
+    }
+    .meta { color: var(--muted); font-size: 10pt; margin-bottom: 28px; }
+    h2 {
+      font-size: 1.2rem;
+      margin: 28px 0 12px;
+      color: #134e4a;
+      page-break-after: avoid;
+    }
+    h3 { font-size: 1.05rem; margin: 20px 0 8px; page-break-after: avoid; }
+    p { margin: 0 0 10px; }
+    ul { margin: 0 0 12px; padding-left: 22px; }
+    li { margin-bottom: 6px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0 18px;
+      font-size: 10pt;
+      page-break-inside: avoid;
+    }
+    th, td {
+      border: 1px solid var(--border);
+      padding: 8px 10px;
+      text-align: left;
+      vertical-align: top;
+    }
+    th { background: #f1f5f9; font-weight: 600; }
+    blockquote {
+      margin: 12px 0;
+      padding: 10px 14px;
+      background: #f8fafc;
+      border-left: 4px solid var(--accent);
+      color: var(--muted);
+      font-size: 10pt;
+    }
+    .cover {
+      min-height: 70vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      page-break-after: always;
+    }
+    .cover h1 { border: none; font-size: 2rem; }
+    .cover .subtitle { font-size: 14pt; color: var(--muted); margin-top: 12px; }
+    hr { border: none; border-top: 1px solid var(--border); margin: 24px 0; }
+    footer.note {
+      margin-top: 36px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+      font-size: 9pt;
+      color: var(--muted);
+    }
+    @media print {
+      body { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+      .wrap { max-width: none; padding: 0 12mm; }
+      a { color: inherit; text-decoration: none; }
+      h2 { page-break-before: auto; }
+    }
+    @page { size: A4; margin: 14mm; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="cover">
+      <h1>Safety Case / SMS Uygulaması</h1>
+      <p class="subtitle">Kullanım sunumu ve işletme kılavuzu</p>
+      <p class="meta" style="margin-top: 32px;">
+        <strong>Hedef kitle:</strong> Olay bildiren personel, güvenlik görevlileri, yöneticiler, kalite / SMS ekibi<br />
+        <strong>Odak:</strong> Ekranlar, roller ve önerilen iş akışı (teknik kurulum dışı)<br />
+        <strong>Tarih:</strong> Mart 2026
+      </p>
+    </section>
+
+    <h2>1. Bu sistem neyi çözer?</h2>
+    <p>
+      Kurum içi <strong>güvenlik olayları, tehlikeler, yakın kaçırma, prosedür sapmaları ve değişiklik (MoC)</strong>
+      kayıtlarını tek yerde toplar; her kayıt için <strong>risk değerlendirmesi (HIRM)</strong>,
+      <strong>mitigasyon</strong>, <strong>etkinlik kontrolü</strong> ve <strong>onay</strong> adımlarını izlenebilir kılar.
+    </p>
+    <p>
+      Ana fikir: bir <strong>vaka (Safety Case)</strong> açılır; üst bantta <strong>yaşam döngüsü rozeti</strong>
+      (Taslak, Açık, Mitigasyon açık, İzleme, Kapalı vb.) vakanın nerede olduğunu özetler. Ayrıntılı adımlar <strong>sekmeler</strong> üzerinden yürür.
+    </p>
+
+    <h2>2. Temel kavramlar</h2>
+    <table>
+      <thead>
+        <tr><th>Kavram</th><th>Anlatım</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Rapor / Safety Case</strong></td>
+          <td>Tek bir güvenlik konusunun dosyası (olay, değişiklik veya risk çalışması). Numara ve başlık listede görünür.</td>
+        </tr>
+        <tr>
+          <td><strong>Yaşam döngüsü</strong></td>
+          <td>Mantıksal aşama: taslak, açık, aksiyon devam, izleme, kapalı. Üstte yeşil etiket.</td>
+        </tr>
+        <tr>
+          <td><strong>İş akışı durumu (status)</strong></td>
+          <td>Daha ayrıntılı süreç etiketi (ör. HIRM Gerekli, Aksiyon Uygulanıyor). Raporlarda ikisi birlikte görülebilir.</td>
+        </tr>
+        <tr>
+          <td><strong>HIRM</strong></td>
+          <td>Tehlike + şiddet/olasılık ile risk seviyesinin belirlendiği bölüm.</td>
+        </tr>
+        <tr>
+          <td><strong>Mitigasyon</strong></td>
+          <td>Riski azaltan aksiyonlar; sorumlu ve hedef tarih.</td>
+        </tr>
+        <tr>
+          <td><strong>MoC</strong></td>
+          <td>Değişikliklerin ayrı kayıtla izlendiği sekme (Management of Change).</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>3. Giriş, dil ve güvenlik</h2>
+    <ul>
+      <li><strong>Giriş:</strong> Kurum e-postası ve şifre. Paylaşılan bilgisayarlarda iş bitince <strong>çıkış</strong> yapılmalıdır.</li>
+      <li><strong>Dil:</strong> Üst menüde TR / EN seçilebilir; bazı menü adları İngilizce kalabilir (ör. Action Board).</li>
+    </ul>
+
+    <h2>4. Üst menü</h2>
+    <table>
+      <thead>
+        <tr><th>Menü</th><th>Kim</th><th>Ne işe yarar</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Pano (Dashboard)</strong></td>
+          <td>Herkes; özellikle SMS / yönetim</td>
+          <td>Özet göstergeler: açık vakalar, aksiyonlar, MOR uyarıları, onay bekleyenler. İleri: lesson learned, uyumluluk bulguları (role bağlı).</td>
+        </tr>
+        <tr>
+          <td><strong>Raporlar</strong></td>
+          <td>Herkes</td>
+          <td>Tüm vakaların listesi; vakaya girme.</td>
+        </tr>
+        <tr>
+          <td><strong>Action Board</strong></td>
+          <td>Aksiyon sahipleri, hat, SMS</td>
+          <td>Tüm mitigasyonların tablo görünümü; <em>Sadece gecikenler</em> ve <em>Bana atanmış</em> filtreleri.</td>
+        </tr>
+        <tr>
+          <td><strong>Registers</strong></td>
+          <td>SMS, kalite, denetim</td>
+          <td>Case ve change özetleri; risk/mitigation özet sayıları (ayrıntı için vaka veya Action Board).</td>
+        </tr>
+        <tr>
+          <td><strong>Yeni rapor</strong></td>
+          <td>Bildiren, hat, SMS</td>
+          <td>Yeni vaka oluşturma.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h2>5. Yeni vaka oluşturma</h2>
+    <p>
+      <strong>Yeni rapor</strong> formunda en az <strong>başlık</strong>; mümkünse <strong>açıklama</strong>, <strong>birim</strong>, <strong>kategori</strong>, <strong>vaka tipi</strong> doldurulmalıdır.
+      Uçak kayıt, parça, anında alınan önlemler olaya göre eklenir. Kayıt sonrası kullanıcı otomatik olarak vaka detayına gider.
+    </p>
+
+    <h2>6. Vaka sekmeleri (önerilen anlatım sırası)</h2>
+
+    <h3>6.1 Genel / Ekler</h3>
+    <p>Tanım, meta bilgiler, ek dosyalar; genel bakış.</p>
+
+    <h3>6.2 Triage / İnceleme</h3>
+    <p>SMS’nin vakayı sınıflandırması, MOR ihtiyacı, ilk inceleme ve statü / yorumlar.</p>
+
+    <h3>6.3 Soruşturma</h3>
+    <p>Kök neden ve kanıtların dokümante edildiği alan.</p>
+
+    <h3>6.4 Risk (HIRM)</h3>
+    <p>Tehlike ve risk satırları; matris ile seviye. Yüksek riskte onay hiyerarşisi devreye girer.</p>
+
+    <h3>6.5 Mitigasyon</h3>
+    <p>Aksiyonlar: tür, sorumlu, hedef tarih. <strong>Action Board</strong> ile aynı veri kümesinin operasyonel görünümü.</p>
+
+    <h3>6.6 Etkinlik</h3>
+    <p>Uygulamanın işe yarayıp yaramadığı; gerekirse ek aksiyon ihtiyacı.</p>
+
+    <h3>6.7 Onaylar</h3>
+    <p>Tanımlı onay rotaları ve imza adımları; risk kabulü kurallarına bağlıdır.</p>
+
+    <h3>6.8 Yorum / İz</h3>
+    <p>Tartışma ve iletişim izi.</p>
+
+    <h3>6.9 MoC</h3>
+    <p>Değişiklik tipi, kapsam, açıklama. <strong>Registers → Change register</strong> ile değişiklik vakaları listelenir.</p>
+
+    <h2>7. Önerilen uçtan uca akış (tek slayt özeti)</h2>
+    <p style="font-size: 12pt; font-weight: 600; color: #134e4a;">
+      Kayıt → Triage → Risk → Aksiyon → Etkinlik → Onay → Kapanış
+    </p>
+    <ol>
+      <li>Bildirim: Yeni rapor ile vaka açılır.</li>
+      <li>Triage: SMS sınıflandırır ve yönlendirir.</li>
+      <li>Risk: HIRM tamamlanır.</li>
+      <li>Mitigasyon: Aksiyonlar atanır; Action Board ile takip.</li>
+      <li>Etkinlik: Kontrol ve doğrulama.</li>
+      <li>Onay: Gerekli imzalar.</li>
+      <li>Kapanış: Lesson learned ve raporlama.</li>
+    </ol>
+
+    <h2>8. Roller</h2>
+    <p>
+      Profilde <strong>rol</strong> görünür. Örnek: <strong>Reporter</strong> bildirir;
+      <strong>SafetyOfficer</strong> triage ve süreç; <strong>Manager / Admin</strong> geniş yetki ve özet panolar.
+    </p>
+    <blockquote>
+      <strong>Canlı ortam:</strong> Hesaplar ve şifreler IT / SMS tarafından atanır. Eğitimde demo şifresi paylaşılmamalıdır.
+    </blockquote>
+
+    <h2>9. Bildirimler (e-posta)</h2>
+    <p>
+      Yeni vaka veya mitigasyon gibi olaylar kurallara göre e-posta kuyruğuna alınabilir.
+      İletinin gerçekleşmesi kurumun e-posta altyapısı ve arka plan işçisi ile yapılandırılır; kullanıcı “atanan iş için mail alabilirim” beklentisini kurum açıklamalıdır.
+    </p>
+
+    <h2>10. PDF oluşturma</h2>
+    <p>
+      Bu HTML dosyasını açın → <strong>Yazdır (Ctrl+P)</strong> → hedef olarak <strong>PDF olarak kaydet</strong> seçin.
+    </p>
+
+    <h2>11. Eğitmen notları</h2>
+    <ul>
+      <li>İlk tur: Dashboard → Raporlar → örnek vaka → Action Board.</li>
+      <li>MoC anlatımı için değişiklik tipinde örnek vaka kullanın.</li>
+      <li>Lifecycle = özet aşama; status = ayrıntılı iş akışı etiketi.</li>
+    </ul>
+
+    <footer class="note">
+      Bu belge arayüzle birlikte güncellenmeli; sunumda güncel ekran görüntüleri kullanılması önerilir.
+    </footer>
+  </div>
+</body>
+</html>

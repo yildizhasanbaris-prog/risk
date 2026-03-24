@@ -69,6 +69,76 @@ export const lookupController = {
     }
   },
 
+  async locations(_req: Request, res: Response) {
+    try {
+      const data = await prisma.location.findMany({ orderBy: { code: 'asc' } });
+      return res.json(data);
+    } catch (err) {
+      console.error('Locations lookup error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async actionTypes(_req: Request, res: Response) {
+    try {
+      const data = await prisma.actionType.findMany({ where: { isActive: true }, orderBy: { code: 'asc' } });
+      return res.json(data);
+    } catch (err) {
+      console.error('Action types lookup error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async approvalRoutes(_req: Request, res: Response) {
+    try {
+      const data = await prisma.approvalRoute.findMany({ orderBy: { code: 'asc' } });
+      return res.json(data);
+    } catch (err) {
+      console.error('Approval routes lookup error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async riskAcceptanceRules(_req: Request, res: Response) {
+    try {
+      const data = await prisma.riskAcceptanceRule.findMany({ orderBy: { sortOrder: 'asc' } });
+      return res.json(data);
+    } catch (err) {
+      console.error('Risk acceptance rules error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async hfTaxonomy(_req: Request, res: Response) {
+    try {
+      const data = await prisma.hfTaxonomy.findMany({ orderBy: { sortOrder: 'asc' } });
+      return res.json(data);
+    } catch (err) {
+      console.error('HF taxonomy error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async recordRetentionRules(_req: Request, res: Response) {
+    try {
+      const data = await prisma.recordRetentionRule.findMany();
+      return res.json(data);
+    } catch (err) {
+      console.error('Retention rules error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async confidentialityRules(_req: Request, res: Response) {
+    try {
+      const data = await prisma.confidentialityRule.findMany();
+      return res.json(data);
+    } catch (err) {
+      console.error('Confidentiality rules error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
   async riskCalculate(req: Request, res: Response) {
     try {
       const severity = String(req.query.severity || '').toUpperCase();

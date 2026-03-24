@@ -21,6 +21,8 @@ export function Layout() {
         <nav style={{ display: 'flex', gap: 24, alignItems: 'center' }}>
           <Link to="/" style={{ textDecoration: 'none', color: 'var(--color-text)', fontWeight: 600, fontSize: 15 }}>{t('nav.dashboard')}</Link>
           <Link to="/reports" style={{ textDecoration: 'none', color: 'var(--color-text)', fontWeight: 600, fontSize: 15 }}>{t('nav.reports')}</Link>
+          <Link to="/action-board" style={{ textDecoration: 'none', color: 'var(--color-text)', fontWeight: 600, fontSize: 15 }}>Action Board</Link>
+          <Link to="/registers" style={{ textDecoration: 'none', color: 'var(--color-text)', fontWeight: 600, fontSize: 15 }}>Registers</Link>
           <Link to="/reports/new" className="btn" style={{ textDecoration: 'none' }}>{t('nav.newReport')}</Link>
         </nav>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>

@@ -14,12 +14,31 @@ const tabStyle = ({ isActive }: { isActive: boolean }) => ({
 export function ReportCaseLayout() {
   const { id } = useParams<{ id: string }>();
   const reportId = parseInt(id ?? '0', 10);
+  const validId = !isNaN(reportId) && reportId > 0;
 
-  const { data: report, isLoading } = useQuery({
+  const { data: report, isLoading, isError } = useQuery({
     queryKey: ['report', reportId],
     queryFn: () => reportsApi.getById(reportId).then((r) => r.data),
-    enabled: reportId > 0,
+    enabled: validId,
   });
+
+  if (!validId) {
+    return (
+      <div className="page">
+        <p style={{ color: '#b91c1c' }}>Geçersiz vaka numarası.</p>
+        <Link to="/reports" className="btn btn-secondary" style={{ textDecoration: 'none' }}>Listeye dön</Link>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="page">
+        <p style={{ color: '#b91c1c' }}>Vaka yüklenirken hata oluştu.</p>
+        <Link to="/reports" className="btn btn-secondary" style={{ textDecoration: 'none' }}>Listeye dön</Link>
+      </div>
+    );
+  }
 
   if (isLoading || !report) {
     return (
@@ -41,7 +60,14 @@ export function ReportCaseLayout() {
           <span style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Safety Case</span>
           <h1 style={{ margin: '4px 0 0', fontSize: '1.35rem' }}>{report.reportNo ?? `#${report.id}`} — {report.title}</h1>
         </div>
-        <span style={{ fontSize: 13, padding: '4px 10px', background: '#f1f5f9', borderRadius: 6 }}>{report.status}</span>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+          {(report as { lifecycleLabel?: string }).lifecycleLabel && (
+            <span style={{ fontSize: 13, padding: '4px 10px', background: '#ecfdf5', color: '#047857', borderRadius: 6, fontWeight: 600 }}>
+              {(report as { lifecycleLabel?: string }).lifecycleLabel}
+            </span>
+          )}
+          <span style={{ fontSize: 13, padding: '4px 10px', background: '#f1f5f9', borderRadius: 6 }}>{report.status}</span>
+        </div>
       </div>
 
       <nav

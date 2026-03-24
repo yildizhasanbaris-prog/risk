@@ -1,15 +1,17 @@
 import { Request, Response } from 'express';
-import { PrismaClient, ActionStatus, ReportStatus } from '@prisma/client';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
+import { recalculateLifecycleForReport } from '../services/CaseLifecycleService';
+import { enqueueNotification } from '../services/notificationService';
+import { prisma } from '../lib/prisma';
 
 const createSchema = z.object({
+  title: z.string().optional(),
   description: z.string().min(1),
   ownerUserId: z.number(),
-  dueDate: z.string().optional(),
+  dueDate: z.string().min(1, 'Hedef tarih zorunlu'),
   revisedDueDate: z.string().optional(),
-  riskAssessmentId: z.number().optional(),
+  riskAssessmentId: z.number(),
+  actionTypeId: z.number().optional(),
   supportDepartmentId: z.number().optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
   evidenceRef: z.string().optional(),
@@ -24,7 +26,7 @@ const updateSchema = z.object({
   revisedDueDate: z.string().optional(),
   supportDepartmentId: z.number().optional().nullable(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
-  status: z.enum(['PLANNED', 'IN_PROGRESS', 'DONE', 'CANCELLED']).optional(),
+  status: z.enum(['PLANNED', 'OPEN', 'IN_PROGRESS', 'DONE', 'VERIFIED', 'CANCELLED']).optional(),
   effectivenessComment: z.string().optional(),
   evidenceRef: z.string().optional(),
   escalation: z.string().optional(),
@@ -53,6 +55,7 @@ export const actionController = {
         include: {
           owner: { select: { id: true, name: true, email: true } },
           supportDept: { select: { id: true, code: true, name: true } },
+          actionType: { select: { id: true, code: true, description: true } },
         },
         orderBy: { actionNo: 'asc' },
       });
@@ -77,16 +80,36 @@ export const actionController = {
       const report = await prisma.report.findUnique({ where: { id: reportId } });
       if (!report) return res.status(404).json({ error: 'Report not found' });
 
+      const ra = await prisma.riskAssessment.findFirst({
+        where: { id: parsed.data.riskAssessmentId, reportId },
+      });
+      if (!ra) return res.status(400).json({ error: 'Geçersiz risk kalemi (riskAssessmentId)' });
+
+      let actionTypeId = parsed.data.actionTypeId;
+      if (actionTypeId == null) {
+        const firstType = await prisma.actionType.findFirst({ where: { isActive: true }, orderBy: { id: 'asc' } });
+        if (!firstType) {
+          return res.status(400).json({ error: 'Sistemde tanımlı aksiyon tipi yok; seed veya yönetici eklemeli.' });
+        }
+        actionTypeId = firstType.id;
+      }
+
       const count = await prisma.action.count({ where: { reportId } });
+      const baseNo = report.reportNo ?? `CASE-${reportId}`;
+      const mitigationDisplayNo = `${baseNo}-M${String(count + 1).padStart(2, '0')}`;
       const action = await prisma.action.create({
         data: {
           reportId,
           actionNo: count + 1,
+          title: parsed.data.title,
+          mitigationDisplayNo,
+          linkedReportNo: report.reportNo ?? undefined,
           description: parsed.data.description,
           ownerUserId: parsed.data.ownerUserId,
           dueDate: parsed.data.dueDate ? new Date(parsed.data.dueDate) : undefined,
           revisedDueDate: parsed.data.revisedDueDate ? new Date(parsed.data.revisedDueDate) : undefined,
           riskAssessmentId: parsed.data.riskAssessmentId,
+          actionTypeId,
           supportDepartmentId: parsed.data.supportDepartmentId,
           priority: parsed.data.priority,
           evidenceRef: parsed.data.evidenceRef,
@@ -95,6 +118,17 @@ export const actionController = {
         },
         include: { owner: { select: { id: true, name: true, email: true } } },
       });
+      await recalculateLifecycleForReport(prisma, reportId);
+      void enqueueNotification(prisma, 'MITIGATION_CREATED', {
+        reportId,
+        reportNo: report.reportNo ?? '',
+        mitigationNo: action.mitigationDisplayNo ?? '',
+        title: action.title ?? action.description.slice(0, 80),
+        targetDate: action.dueDate?.toISOString() ?? '',
+        currentStatus: action.status,
+        confidential: report.confidential,
+        directLink: `/reports/${reportId}/actions`,
+      }).catch((e) => console.error('enqueue MITIGATION_CREATED', e));
       return res.status(201).json(action);
     } catch (err) {
       console.error('Create action error:', err);
@@ -128,17 +162,7 @@ export const actionController = {
         include: { owner: { select: { id: true, name: true, email: true } } },
       });
 
-      const report = await prisma.report.findUnique({ where: { id: reportId }, include: { actions: true } });
-      const inMitigation =
-        report &&
-        (report.status === ReportStatus.ACTION_IN_PROGRESS || report.status === ReportStatus.MITIGATION_IN_PROGRESS);
-      if (inMitigation) {
-        const actionsAfterUpdate = report.actions.map((a) => (a.id === actionId ? action : a));
-        const allDone = actionsAfterUpdate.every((a) => a.status === ActionStatus.DONE);
-        if (allDone) {
-          await prisma.report.update({ where: { id: reportId }, data: { status: ReportStatus.PENDING_EFFECTIVENESS_CHECK } });
-        }
-      }
+      await recalculateLifecycleForReport(prisma, reportId);
 
       return res.json(action);
     } catch (err) {

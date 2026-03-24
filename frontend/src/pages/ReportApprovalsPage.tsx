@@ -53,6 +53,11 @@ export function ReportApprovalsPage() {
           <button type="button" className="btn btn-secondary" onClick={() => createMut.mutate()} disabled={createMut.isPending}>
             Onay kaydı ekle
           </button>
+          {createMut.isError && (
+            <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+              İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+            </p>
+          )}
         </div>
       )}
       <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
@@ -63,13 +68,20 @@ export function ReportApprovalsPage() {
               {a.signedBy && <span style={{ marginLeft: 8, color: 'var(--color-text-muted)' }}>{a.signedBy.name} {a.signedAt ? new Date(a.signedAt).toLocaleString('tr-TR') : ''}</span>}
             </div>
             {canEdit && a.status === 'PENDING' && (
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button type="button" className="btn" style={{ padding: '4px 12px' }} onClick={() => signMut.mutate({ aid: a.id, status: 'APPROVED' })}>
-                  Onayla
-                </button>
-                <button type="button" className="btn btn-secondary" style={{ padding: '4px 12px' }} onClick={() => signMut.mutate({ aid: a.id, status: 'REJECTED' })}>
-                  Reddet
-                </button>
+              <div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="button" className="btn" style={{ padding: '4px 12px' }} onClick={() => signMut.mutate({ aid: a.id, status: 'APPROVED' })}>
+                    Onayla
+                  </button>
+                  <button type="button" className="btn btn-secondary" style={{ padding: '4px 12px' }} onClick={() => signMut.mutate({ aid: a.id, status: 'REJECTED' })}>
+                    Reddet
+                  </button>
+                </div>
+                {signMut.isError && (
+                  <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+                    İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+                  </p>
+                )}
               </div>
             )}
           </li>

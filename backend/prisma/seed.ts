@@ -1,4 +1,4 @@
-import { PrismaClient, ReportStatus } from '@prisma/client';
+import { PrismaClient, ReportStatus, SafetyCaseKind, CaseLifecycleStatus, AssessmentType } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -28,6 +28,18 @@ async function main() {
     await prisma.department.upsert({ where: { code: d.code }, update: {}, create: d });
   }
   console.log('Departments created');
+
+  const locationData = [
+    { code: 'HANGAR1', name: 'Hangar 1' },
+    { code: 'WORKSHOP_A', name: 'Workshop A' },
+    { code: 'LINE_OPS', name: 'Line / Ramp' },
+    { code: 'STORES', name: 'Stores' },
+    { code: 'OFFICE', name: 'Office' },
+  ];
+  for (const loc of locationData) {
+    await prisma.location.upsert({ where: { code: loc.code }, update: {}, create: loc });
+  }
+  console.log('Locations created');
 
   // Severity Levels (Table 50 - EASA/ICAO)
   const severityData = [
@@ -121,6 +133,127 @@ async function main() {
     await prisma.caseType.upsert({ where: { code: ct.code }, update: {}, create: ct });
   }
   console.log('Case types created');
+
+  const actionTypes = [
+    { code: 'CORRECTIVE', description: 'Corrective action' },
+    { code: 'PREVENTIVE', description: 'Preventive action' },
+    { code: 'ADMIN', description: 'Administrative / procedural control' },
+  ];
+  for (const a of actionTypes) {
+    await prisma.actionType.upsert({
+      where: { code: a.code },
+      update: { description: a.description },
+      create: { ...a, isActive: true },
+    });
+  }
+  console.log('Action types created');
+
+  await prisma.approvalRoute.upsert({
+    where: { code: 'DEFAULT_SCREENING' },
+    update: {},
+    create: { code: 'DEFAULT_SCREENING', label: 'Default screening route' },
+  });
+  await prisma.approvalRoute.upsert({
+    where: { code: 'RISK_ACCEPTANCE_STD' },
+    update: {},
+    create: { code: 'RISK_ACCEPTANCE_STD', label: 'Standard risk acceptance' },
+  });
+  console.log('Approval routes created');
+
+  await prisma.riskAcceptanceRule.deleteMany({});
+  await prisma.riskAcceptanceRule.createMany({
+    data: [
+      {
+        riskLevel: 'INTOLERABLE',
+        acceptingRoleName: 'AccountableManager',
+        responseTimeHours: 24,
+        secondaryApproverRequired: true,
+        sortOrder: 1,
+      },
+      {
+        riskLevel: 'TOLERABLE',
+        acceptingRoleName: 'SMSManager',
+        responseTimeHours: 72,
+        sortOrder: 2,
+      },
+      {
+        riskLevel: 'ACCEPTABLE',
+        acceptingRoleName: 'SMSManager',
+        responseTimeHours: 120,
+        sortOrder: 3,
+      },
+    ],
+  });
+  console.log('Risk acceptance rules created');
+
+  const hfRows = [
+    { code: 'COMMS', description: 'Communication', sortOrder: 1 },
+    { code: 'FATIGUE', description: 'Fatigue', sortOrder: 2 },
+    { code: 'DISTRACT', description: 'Distraction / interruption', sortOrder: 3 },
+    { code: 'KNOWLEDGE', description: 'Lack of knowledge / training', sortOrder: 4 },
+    { code: 'TIME', description: 'Time pressure', sortOrder: 5 },
+    { code: 'TEAM', description: 'Lack of teamwork', sortOrder: 6 },
+    { code: 'RESOURCES', description: 'Lack of resources', sortOrder: 7 },
+    { code: 'HANDOVER', description: 'Poor handover', sortOrder: 8 },
+    { code: 'PROC_USABILITY', description: 'Procedure usability', sortOrder: 9 },
+    { code: 'ORG', description: 'Organisational factors', sortOrder: 10 },
+  ];
+  for (const h of hfRows) {
+    await prisma.hfTaxonomy.upsert({ where: { code: h.code }, update: {}, create: h });
+  }
+  console.log('HF taxonomy created');
+
+  await prisma.recordRetentionRule.deleteMany({});
+  await prisma.recordRetentionRule.createMany({
+    data: [
+      { entityType: 'report', retentionDays: 2555, notes: 'Approx. 7 years' },
+      { entityType: 'risk_assessment', retentionDays: 2555 },
+      { entityType: 'action', retentionDays: 2555 },
+    ],
+  });
+  await prisma.confidentialityRule.deleteMany({});
+  await prisma.confidentialityRule.createMany({
+    data: [
+      {
+        code: 'EMAIL_MASK',
+        description: 'Do not put sensitive title in email subject for confidential cases',
+        maskSubject: true,
+      },
+    ],
+  });
+  console.log('Records / confidentiality masters created');
+
+  await prisma.notificationRule.upsert({
+    where: { eventCode: 'CASE_CREATED' },
+    update: { isActive: true, templateKey: 'CASE_CREATED' },
+    create: { eventCode: 'CASE_CREATED', isActive: true, templateKey: 'CASE_CREATED' },
+  });
+  await prisma.notificationRule.upsert({
+    where: { eventCode: 'MITIGATION_CREATED' },
+    update: { isActive: true, templateKey: 'MITIGATION_CREATED' },
+    create: { eventCode: 'MITIGATION_CREATED', isActive: true, templateKey: 'MITIGATION_CREATED' },
+  });
+  await prisma.notificationTemplate.upsert({
+    where: { templateKey: 'CASE_CREATED' },
+    update: {},
+    create: {
+      templateKey: 'CASE_CREATED',
+      subjectTemplate: '[SMS] Yeni case {{report_no}}',
+      bodyTemplate:
+        'Rapor no: {{report_no}}\nBaşlık: {{title}}\nDurum: {{current_status}}\nBağlantı: {{direct_link}}',
+    },
+  });
+  await prisma.notificationTemplate.upsert({
+    where: { templateKey: 'MITIGATION_CREATED' },
+    update: {},
+    create: {
+      templateKey: 'MITIGATION_CREATED',
+      subjectTemplate: '[SMS] Yeni mitigation {{mitigation_no}} ({{report_no}})',
+      bodyTemplate:
+        'Mitigation: {{mitigation_no}}\nCase: {{report_no}}\n{{title}}\nHedef tarih: {{target_date}}\n{{direct_link}}',
+    },
+  });
+  console.log('Notification rules/templates seeded');
 
   const extraRoles = [
     'DepartmentReviewer',
@@ -242,6 +375,75 @@ async function main() {
     });
   }
   console.log('10 test reports created');
+
+  const workshopNo = `SMS-${year}-W001`;
+  const workshop = await prisma.report.upsert({
+    where: { reportNo: workshopNo },
+    update: {},
+    create: {
+      reportNo: workshopNo,
+      title: 'Initial Workshop Setup – demo CHANGE case',
+      description: 'Tek CHANGE case altında atölye kurulum risk kalemleri (demo).',
+      reportedByUserId: reporterUser.id,
+      departmentId: workshopDept?.id,
+      locationId: (await prisma.location.findFirst({ where: { code: 'WORKSHOP_A' } }))?.id,
+      safetyCaseKind: SafetyCaseKind.CHANGE,
+      lifecycleStatus: CaseLifecycleStatus.OPEN,
+      status: ReportStatus.UNDER_SCREENING,
+      isSafetyRelated: true,
+    },
+  });
+  await prisma.changeRecord.upsert({
+    where: { reportId: workshop.id },
+    update: { changeSubtype: 'INITIAL_WORKSHOP_SETUP', changeScope: 'Wheel & Brake shop (demo)' },
+    create: {
+      reportId: workshop.id,
+      changeType: 'FACILITY',
+      changeSubtype: 'INITIAL_WORKSHOP_SETUP',
+      changeScope: 'Wheel & Brake shop (demo)',
+      description: 'Workshop setup MoC — risk items ayrı ayrı eklenir.',
+    },
+  });
+  const workshopRiskLabels = [
+    'Facility / Layout',
+    'Pressure Systems',
+    'Wash Area',
+    'Assembly Benches',
+    'Lifting Equipment',
+    'Tool Control / Calibration',
+    'Training / HF',
+    'Emergency / PPE',
+    'Interfaces / Suppliers',
+  ];
+  const hfCat = await prisma.category.findUnique({ where: { code: 'HAZARD' } });
+  const existingHazards = await prisma.hazard.count({ where: { reportId: workshop.id } });
+  if (existingHazards === 0) {
+  for (let i = 0; i < workshopRiskLabels.length; i++) {
+    const label = workshopRiskLabels[i];
+    const h = await prisma.hazard.create({
+      data: { reportId: workshop.id, statement: label, sortOrder: i },
+    });
+    await prisma.riskAssessment.create({
+      data: {
+        reportId: workshop.id,
+        hazardId: h.id,
+        hazardCategoryId: hfCat?.id,
+        assessmentType: AssessmentType.INITIAL,
+        hazardDescription: label,
+        existingControls: 'TBD — workshop setup assessment',
+        severityCode: 'D',
+        likelihoodCode: 3,
+        riskIndex: '3D',
+        riskLevel: 'TOLERABLE',
+        riskOwnerUserId: reporterUser.id,
+        reviewDueDate: new Date(Date.now() + 90 * 86400000),
+        assessedByUserId: reporterUser.id,
+        assessedAt: new Date(),
+      },
+    });
+  }
+  }
+  console.log('Workshop CHANGE demo case created');
 
   console.log('Seed completed successfully.');
 }

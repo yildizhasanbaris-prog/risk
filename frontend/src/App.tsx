@@ -14,6 +14,8 @@ import { ReportApprovalsPage } from './pages/ReportApprovalsPage';
 import { ReportCommentsPage } from './pages/ReportCommentsPage';
 import { ReportChangePage } from './pages/ReportChangePage';
 import { DashboardPage } from './pages/DashboardPage';
+import { ActionBoardPage } from './pages/ActionBoardPage';
+import { RegistersPage } from './pages/RegistersPage';
 import { Layout } from './components/Layout';
 import { ReportCaseLayout } from './components/ReportCaseLayout';
 
@@ -45,6 +47,8 @@ function AppRoutes() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="action-board" element={<ActionBoardPage />} />
+        <Route path="registers" element={<RegistersPage />} />
         <Route path="reports" element={<ReportListPage />} />
         <Route path="reports/new" element={<ReportNewPage />} />
         <Route path="reports/:id" element={<ReportCaseLayout />}>

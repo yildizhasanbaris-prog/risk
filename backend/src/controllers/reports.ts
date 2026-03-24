@@ -1,10 +1,23 @@
 import { Request, Response } from 'express';
-import { PrismaClient, ReportStatus, MorStatus, MandatoryVoluntary, OccurrenceClassification } from '@prisma/client';
+import {
+  ReportStatus,
+  MorStatus,
+  MandatoryVoluntary,
+  OccurrenceClassification,
+  CaseLifecycleStatus,
+} from '@prisma/client';
 import { z } from 'zod';
 import ExcelJS from 'exceljs';
-import { canTransition, getAllowedTransitions, hasOpenActionsForClosure } from '../services/StatusWorkflowService';
-
-const prisma = new PrismaClient();
+import { canTransition, getAllowedTransitions } from '../services/StatusWorkflowService';
+import {
+  deriveLifecycle,
+  lifecycleLabels,
+  recalculateLifecycleForReport,
+  validateCaseClosure,
+} from '../services/CaseLifecycleService';
+import { enqueueNotification } from '../services/notificationService';
+import { writeAuditLog } from '../services/auditService';
+import { prisma } from '../lib/prisma';
 
 const createReportSchema = z.object({
   title: z.string().min(1),
@@ -34,6 +47,10 @@ const updateReportSchema = createReportSchema.partial();
 const updateStatusSchema = z.object({
   status: z.nativeEnum(ReportStatus),
   comment: z.string().optional(),
+});
+
+const updateLifecycleSchema = z.object({
+  lifecycleStatus: z.nativeEnum(CaseLifecycleStatus),
 });
 
 const reviewUpdateSchema = z.object({
@@ -124,6 +141,8 @@ export const reportController = {
           reportNo,
           reportedByUserId: req.user!.userId,
           status: ReportStatus.NEW,
+          lifecycleStatus: CaseLifecycleStatus.OPEN,
+          safetyCaseKind: 'REPORT',
         },
         include: {
           reportedBy: { select: { id: true, name: true, email: true } },
@@ -131,6 +150,18 @@ export const reportController = {
           category: { select: { code: true, description: true } },
         },
       });
+      void enqueueNotification(prisma, 'CASE_CREATED', {
+        reportId: report.id,
+        reportNo: report.reportNo ?? '',
+        title: report.title,
+        confidential: report.confidential,
+        caseType: 'REPORT',
+        department: report.departmentId != null ? String(report.departmentId) : '',
+        location: report.location ?? '',
+        riskLevel: report.currentRiskLevel ?? '',
+        currentStatus: report.status,
+        directLink: `/reports/${report.id}`,
+      }).catch((e) => console.error('enqueue CASE_CREATED', e));
       return res.status(201).json(report);
     } catch (err) {
       console.error('Create report error:', err);
@@ -177,7 +208,18 @@ export const reportController = {
         if (!canView) return res.status(403).json({ error: 'Access denied' });
       }
 
-      const payload = { ...report } as Record<string, unknown>;
+      const resolvedLifecycle =
+        report.lifecycleStatus ??
+        deriveLifecycle({
+          reportStatus: report.status,
+          actions: report.actions.map((a) => ({ status: a.status })),
+          effectiveness: report.effectivenessReview,
+        });
+
+      const payload = { ...report, lifecycleStatus: resolvedLifecycle, lifecycleLabel: lifecycleLabels[resolvedLifecycle] } as Record<
+        string,
+        unknown
+      >;
       if (['SafetyOfficer', 'Manager', 'Admin'].includes(user.roleName)) {
         payload.allowedStatuses = getAllowedTransitions(report.status);
       }
@@ -236,6 +278,16 @@ export const reportController = {
           category: { select: { code: true, description: true } },
         },
       });
+      if (['SafetyOfficer', 'Manager', 'Admin'].includes(user.roleName)) {
+        await writeAuditLog(prisma, {
+          entityType: 'report',
+          entityId: id,
+          action: 'update',
+          userId: user.userId,
+          oldValue: { title: existing.title, description: existing.description },
+          newValue: parsed.data,
+        });
+      }
       return res.json(report);
     } catch (err) {
       console.error('Update report error:', err);
@@ -268,16 +320,8 @@ export const reportController = {
         });
       }
       if (parsed.data.status === ReportStatus.CLOSED) {
-        const actions = await prisma.action.findMany({ where: { reportId: id } });
-        if (hasOpenActionsForClosure(actions)) {
-          return res.status(400).json({ error: 'Açık aksiyon varken kapatılamaz' });
-        }
-        if (existing.status === ReportStatus.PENDING_EFFECTIVENESS_CHECK) {
-          const eff = await prisma.effectivenessReview.findUnique({ where: { reportId: id } });
-          if (!eff || eff.implementationVerified === null) {
-            return res.status(400).json({ error: 'Etkinlik incelemesi tamamlanmadan kapatılamaz' });
-          }
-        }
+        const closeErr = await validateCaseClosure(prisma, id);
+        if (closeErr) return res.status(400).json({ error: closeErr });
         if (existing.currentRiskLevel === 'INTOLERABLE') {
           const anyRiskAccept = await prisma.caseApproval.findFirst({
             where: { reportId: id, approvalType: 'RISK_ACCEPTANCE', status: 'APPROVED' },
@@ -295,6 +339,7 @@ export const reportController = {
             ...(parsed.data.status === ReportStatus.CLOSED && {
               closedAt: new Date(),
               closureSummary: existing.closureSummary ?? 'Closed',
+              lifecycleStatus: CaseLifecycleStatus.CLOSED,
             }),
           },
         }),
@@ -309,15 +354,33 @@ export const reportController = {
         }),
       ]);
 
+      if (parsed.data.status !== ReportStatus.CLOSED) {
+        await recalculateLifecycleForReport(prisma, id);
+      }
+
       const report = await prisma.report.findUnique({
         where: { id },
         include: {
           reportedBy: { select: { id: true, name: true, email: true } },
           department: { select: { code: true, name: true } },
           category: { select: { code: true, description: true } },
+          actions: { select: { status: true } },
+          effectivenessReview: true,
         },
       });
-      return res.json(report);
+      if (!report) return res.status(404).json({ error: 'Report not found' });
+      const resolvedLifecycle =
+        report.lifecycleStatus ??
+        deriveLifecycle({
+          reportStatus: report.status,
+          actions: report.actions,
+          effectiveness: report.effectivenessReview,
+        });
+      return res.json({
+        ...report,
+        lifecycleStatus: resolvedLifecycle,
+        lifecycleLabel: lifecycleLabels[resolvedLifecycle],
+      });
     } catch (err) {
       console.error('Update status error:', err);
       return res.status(500).json({ error: 'Internal server error' });
@@ -387,14 +450,14 @@ export const reportController = {
           });
         }
         if (parsed.data.status === ReportStatus.CLOSED) {
-          const actions = await prisma.action.findMany({ where: { reportId: id } });
-          if (hasOpenActionsForClosure(actions)) {
-            return res.status(400).json({ error: 'Açık aksiyon varken kapatılamaz' });
-          }
-          if (existing.status === ReportStatus.PENDING_EFFECTIVENESS_CHECK) {
-            const eff = await prisma.effectivenessReview.findUnique({ where: { reportId: id } });
-            if (!eff || eff.implementationVerified === null) {
-              return res.status(400).json({ error: 'Etkinlik incelemesi tamamlanmadan kapatılamaz' });
+          const closeErr = await validateCaseClosure(prisma, id);
+          if (closeErr) return res.status(400).json({ error: closeErr });
+          if (existing.currentRiskLevel === 'INTOLERABLE') {
+            const anyRiskAccept = await prisma.caseApproval.findFirst({
+              where: { reportId: id, approvalType: 'RISK_ACCEPTANCE', status: 'APPROVED' },
+            });
+            if (!anyRiskAccept) {
+              return res.status(400).json({ error: 'Kabul edilemez risk için risk kabul onayı gerekli' });
             }
           }
         }
@@ -402,6 +465,7 @@ export const reportController = {
         if (parsed.data.status === ReportStatus.CLOSED) {
           updateData.closedAt = new Date();
           updateData.closureSummary = parsed.data.closureSummary ?? existing.closureSummary ?? 'Closed';
+          updateData.lifecycleStatus = CaseLifecycleStatus.CLOSED;
         }
       }
 
@@ -420,17 +484,90 @@ export const reportController = {
         }
       });
 
+      if (parsed.data.status !== ReportStatus.CLOSED) {
+        await recalculateLifecycleForReport(prisma, id);
+      }
+
       const report = await prisma.report.findUnique({
         where: { id },
         include: {
           reportedBy: { select: { id: true, name: true, email: true } },
           department: { select: { code: true, name: true } },
           category: { select: { code: true, description: true } },
+          actions: { select: { status: true } },
+          effectivenessReview: true,
         },
       });
-      return res.json(report);
+      if (!report) return res.status(404).json({ error: 'Report not found' });
+      const resolvedLifecycle =
+        report.lifecycleStatus ??
+        deriveLifecycle({
+          reportStatus: report.status,
+          actions: report.actions,
+          effectiveness: report.effectivenessReview,
+        });
+      return res.json({
+        ...report,
+        lifecycleStatus: resolvedLifecycle,
+        lifecycleLabel: lifecycleLabels[resolvedLifecycle],
+      });
     } catch (err) {
       console.error('Review update error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async updateLifecycle(req: Request, res: Response) {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) return res.status(400).json({ error: 'Invalid ID' });
+      const parsed = updateLifecycleSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ error: 'Validation error', details: parsed.error.flatten() });
+      }
+      const user = req.user!;
+      if (!['SafetyOfficer', 'Manager', 'Admin'].includes(user.roleName)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      const existing = await prisma.report.findUnique({ where: { id } });
+      if (!existing) return res.status(404).json({ error: 'Report not found' });
+      const target = parsed.data.lifecycleStatus;
+      if (target === CaseLifecycleStatus.OPEN && existing.lifecycleStatus === CaseLifecycleStatus.DRAFT) {
+        await prisma.report.update({
+          where: { id },
+          data: { lifecycleStatus: CaseLifecycleStatus.OPEN },
+        });
+      } else {
+        return res.status(400).json({
+          error:
+            'Manuel olarak yalnızca DRAFT → OPEN desteklenir; diğer lifecycle değerleri aksiyon ve etkililik kayıtlarından otomatik hesaplanır.',
+        });
+      }
+      await recalculateLifecycleForReport(prisma, id);
+      const report = await prisma.report.findUnique({
+        where: { id },
+        include: {
+          reportedBy: { select: { id: true, name: true, email: true } },
+          department: { select: { code: true, name: true } },
+          actions: { select: { status: true } },
+          effectivenessReview: true,
+        },
+      });
+      if (!report) return res.status(404).json({ error: 'Report not found' });
+      const resolvedLifecycle =
+        report.lifecycleStatus ??
+        deriveLifecycle({
+          reportStatus: report.status,
+          actions: report.actions,
+          effectiveness: report.effectivenessReview,
+        });
+      return res.json({
+        ...report,
+        lifecycleStatus: resolvedLifecycle,
+        lifecycleLabel: lifecycleLabels[resolvedLifecycle],
+      });
+    } catch (err) {
+      console.error('Update lifecycle error:', err);
       return res.status(500).json({ error: 'Internal server error' });
     }
   },

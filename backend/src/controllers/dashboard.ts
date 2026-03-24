@@ -1,8 +1,7 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { Prisma, ReportStatus, CaseLifecycleStatus } from '@prisma/client';
 import { z } from 'zod';
-
-const prisma = new PrismaClient();
+import { prisma } from '../lib/prisma';
 
 function baseWhere(user: { userId: number; roleName: string }) {
   const where: Record<string, unknown> = {};
@@ -31,7 +30,7 @@ export const dashboardController = {
           prisma.report.count({ where }),
           prisma.report.groupBy({ by: ['status'], where, _count: true }),
           prisma.action.findMany({
-            where: { reportId: idFilter, status: { notIn: ['DONE', 'CANCELLED'] } },
+            where: { reportId: idFilter, status: { notIn: ['DONE', 'VERIFIED', 'CANCELLED'] } },
             select: { id: true, dueDate: true, revisedDueDate: true, reportId: true },
           }),
           prisma.hazard.count({ where: { reportId: idFilter } }),
@@ -102,12 +101,34 @@ export const dashboardController = {
         byMonth[key] = (byMonth[key] ?? 0) + 1;
       }
 
+      const [monitoringBacklog, pendingApprovals] = await Promise.all([
+        prisma.report.count({
+          where: {
+            AND: [
+              where,
+              { status: { not: ReportStatus.CLOSED } },
+              {
+                OR: [
+                  { lifecycleStatus: CaseLifecycleStatus.MONITORING },
+                  { status: ReportStatus.PENDING_EFFECTIVENESS_CHECK },
+                ],
+              },
+            ],
+          },
+        }),
+        prisma.caseApproval.count({
+          where: { status: 'PENDING', reportId: idFilter },
+        }),
+      ]);
+
       return res.json({
         totalReports: total,
         openHazards: hazardsCount,
         openHighRisks: intolerableCount,
         openActions: openActionsList.length,
         overdueMitigations,
+        monitoringBacklog,
+        pendingApprovals,
         byStatus: statusCounts,
         averageClosureLeadDays: avgClosureDays,
         hfRelatedOpen: hfCases,
@@ -167,24 +188,138 @@ export const dashboardController = {
   },
 
   async listLessons(_req: Request, res: Response) {
-    const items = await prisma.lessonLearned.findMany({ orderBy: { promotedAt: 'desc' }, take: 100 });
-    return res.json(items);
+    try {
+      const items = await prisma.lessonLearned.findMany({ orderBy: { promotedAt: 'desc' }, take: 100 });
+      return res.json(items);
+    } catch (err) {
+      console.error('listLessons error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async actionBoard(req: Request, res: Response) {
+    try {
+      const user = req.user!;
+      const overdueOnly = req.query.overdue === '1';
+      const mine = req.query.mine === '1';
+
+      const actionWhere: Prisma.ActionWhereInput = {};
+      if (mine) actionWhere.ownerUserId = user.userId;
+      if (overdueOnly) {
+        const now = new Date();
+        actionWhere.NOT = { status: { in: ['DONE', 'VERIFIED', 'CANCELLED'] } };
+        actionWhere.OR = [{ dueDate: { lt: now } }, { revisedDueDate: { lt: now } }];
+      }
+
+      if (user.roleName === 'Reporter') {
+        const u = await prisma.user.findUnique({ where: { id: user.userId } });
+        actionWhere.report = {
+          OR: [
+            { reportedByUserId: user.userId },
+            ...(u?.departmentId ? [{ departmentId: u.departmentId }] : []),
+          ],
+        };
+      }
+
+      const actions = await prisma.action.findMany({
+        where: actionWhere,
+        take: 300,
+        orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
+        include: {
+          report: { select: { id: true, reportNo: true, title: true, currentRiskLevel: true } },
+          owner: { select: { id: true, name: true } },
+        },
+      });
+
+      const now = new Date();
+      const rows = actions.map((a) => {
+        const due = a.revisedDueDate ?? a.dueDate;
+        const terminal = ['DONE', 'VERIFIED', 'CANCELLED'].includes(a.status);
+        const overdueDays =
+          !terminal && due && due < now
+            ? Math.max(0, Math.floor((now.getTime() - due.getTime()) / 86400000))
+            : 0;
+        return { ...a, overdueDays };
+      });
+
+      return res.json(rows);
+    } catch (err) {
+      console.error('Action board error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
+  async registers(req: Request, res: Response) {
+    try {
+      if (!['SafetyOfficer', 'Manager', 'Admin'].includes(req.user!.roleName)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      const [cases, riskRegister, mitigationRegister, changeRegister] = await Promise.all([
+        prisma.report.findMany({
+          take: 150,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            reportNo: true,
+            title: true,
+            status: true,
+            lifecycleStatus: true,
+            safetyCaseKind: true,
+            currentRiskLevel: true,
+            createdAt: true,
+            closedAt: true,
+          },
+        }),
+        prisma.riskAssessment.findMany({
+          take: 200,
+          orderBy: { id: 'desc' },
+          include: {
+            report: { select: { reportNo: true, title: true } },
+            riskOwner: { select: { name: true } },
+            hazard: { select: { statement: true } },
+          },
+        }),
+        prisma.action.findMany({
+          take: 200,
+          orderBy: { id: 'desc' },
+          include: {
+            report: { select: { reportNo: true, title: true } },
+            owner: { select: { name: true } },
+          },
+        }),
+        prisma.report.findMany({
+          where: { safetyCaseKind: 'CHANGE' },
+          take: 50,
+          orderBy: { createdAt: 'desc' },
+          select: { id: true, reportNo: true, title: true, status: true, lifecycleStatus: true },
+        }),
+      ]);
+      return res.json({ cases, riskRegister, mitigationRegister, changeRegister });
+    } catch (err) {
+      console.error('Registers error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   },
 
   async promoteLesson(req: Request, res: Response) {
-    if (!['SafetyOfficer', 'Manager', 'Admin'].includes(req.user!.roleName)) {
-      return res.status(403).json({ error: 'Insufficient permissions' });
+    try {
+      if (!['SafetyOfficer', 'Manager', 'Admin'].includes(req.user!.roleName)) {
+        return res.status(403).json({ error: 'Insufficient permissions' });
+      }
+      const parsed = z
+        .object({
+          reportId: z.number().optional(),
+          title: z.string().min(1),
+          summary: z.string().min(1),
+          category: z.string().optional(),
+        })
+        .safeParse(req.body);
+      if (!parsed.success) return res.status(400).json({ error: 'Validation error', details: parsed.error.flatten() });
+      const row = await prisma.lessonLearned.create({ data: parsed.data });
+      return res.status(201).json(row);
+    } catch (err) {
+      console.error('promoteLesson error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
     }
-    const parsed = z
-      .object({
-        reportId: z.number().optional(),
-        title: z.string().min(1),
-        summary: z.string().min(1),
-        category: z.string().optional(),
-      })
-      .safeParse(req.body);
-    if (!parsed.success) return res.status(400).json({ error: 'Validation error', details: parsed.error.flatten() });
-    const row = await prisma.lessonLearned.create({ data: parsed.data });
-    return res.status(201).json(row);
   },
 };

@@ -100,6 +100,11 @@ export function ReportDetailPage() {
             {uploadMutation.isPending ? 'Yükleniyor...' : 'Dosya Ekle'}
           </button>
         )}
+        {uploadMutation.isError && (
+          <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+            İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+          </p>
+        )}
         {attachments.length === 0 ? (
           <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>Henüz dosya yok.</p>
         ) : (

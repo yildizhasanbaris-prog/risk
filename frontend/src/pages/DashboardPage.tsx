@@ -22,6 +22,8 @@ interface DashboardStats {
   openActions: number;
   byStatus: Record<string, number>;
   morAlerts?: { id: number; reportNo: string; title: string; morDeadline: string }[];
+  monitoringBacklog?: number;
+  pendingApprovals?: number;
   openHazards?: number;
   openHighRisks?: number;
   overdueMitigations?: number;
@@ -64,6 +66,7 @@ export function DashboardPage() {
   const [findingCode, setFindingCode] = useState('');
   const [findingTitle, setFindingTitle] = useState('');
   const [linkDrafts, setLinkDrafts] = useState<Record<number, string>>({});
+  const [srbDownloadError, setSrbDownloadError] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard-stats'],
@@ -112,19 +115,24 @@ export function DashboardPage() {
   });
 
   const downloadSrb = async () => {
-    const ids = srbIds
-      .split(/[\s,]+/)
-      .map((s) => parseInt(s.trim(), 10))
-      .filter((n) => !isNaN(n));
-    if (!ids.length) return;
-    const { data: pack } = await api.get('/dashboard/srb-pack', { params: { ids: ids.join(',') } });
-    const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `srb-pack-${new Date().toISOString().slice(0, 10)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    setSrbDownloadError(false);
+    try {
+      const ids = srbIds
+        .split(/[\s,]+/)
+        .map((s) => parseInt(s.trim(), 10))
+        .filter((n) => !isNaN(n));
+      if (!ids.length) return;
+      const { data: pack } = await api.get('/dashboard/srb-pack', { params: { ids: ids.join(',') } });
+      const blob = new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `srb-pack-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      setSrbDownloadError(true);
+    }
   };
 
   if (isLoading) return <div className="page"><p>Yükleniyor...</p></div>;
@@ -170,6 +178,14 @@ export function DashboardPage() {
         <div className="card" style={{ padding: 24 }}>
           <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 14 }}>Geciken mitigasyon</p>
           <p style={{ margin: '8px 0 0', fontSize: 28, fontWeight: 700 }}>{stats.overdueMitigations ?? 0}</p>
+        </div>
+        <div className="card" style={{ padding: 24 }}>
+          <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 14 }}>İzleme / etkililik kuyruğu</p>
+          <p style={{ margin: '8px 0 0', fontSize: 28, fontWeight: 700 }}>{stats.monitoringBacklog ?? 0}</p>
+        </div>
+        <div className="card" style={{ padding: 24 }}>
+          <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 14 }}>Bekleyen onay</p>
+          <p style={{ margin: '8px 0 0', fontSize: 28, fontWeight: 700 }}>{stats.pendingApprovals ?? 0}</p>
         </div>
         <div className="card" style={{ padding: 24 }}>
           <p style={{ margin: 0, color: 'var(--color-text-muted)', fontSize: 14 }}>Ort. kapanış (gün)</p>
@@ -230,6 +246,11 @@ export function DashboardPage() {
               İndir
             </button>
           </div>
+          {srbDownloadError && (
+            <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+              İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+            </p>
+          )}
         </div>
       )}
 
@@ -253,6 +274,11 @@ export function DashboardPage() {
             <button type="button" className="btn" disabled={!lessonTitle.trim() || !lessonSummary.trim() || promoteLesson.isPending} onClick={() => promoteLesson.mutate()}>
               Kaydet
             </button>
+            {promoteLesson.isError && (
+              <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+                İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -273,6 +299,11 @@ export function DashboardPage() {
               Bulgu ekle
             </button>
           </div>
+          {createFinding.isError && (
+            <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+              İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+            </p>
+          )}
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--color-border)' }}>
@@ -328,6 +359,11 @@ export function DashboardPage() {
               ))}
             </tbody>
           </table>
+          {linkFinding.isError && (
+            <p style={{ color: '#b91c1c', marginTop: 8, fontSize: 13 }}>
+              İşlem sırasında hata oluştu. Lütfen tekrar deneyin.
+            </p>
+          )}
         </div>
       )}
 

@@ -10,9 +10,8 @@ import { authMiddleware } from './middleware/auth';
 
 const app = express();
 
-// CORS: allow all origins (restrict via CORS_ORIGIN in production if needed)
 app.use(cors({
-  origin: true, // Reflect request origin - allows Vercel, localhost, etc.
+  origin: config.corsOrigin,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
