@@ -8,6 +8,8 @@ import { dashboardRoutes } from './routes/dashboard';
 import { complianceRoutes } from './routes/compliance';
 import { adminRoutes } from './routes/admin';
 import { authMiddleware, requireRole } from './middleware/auth';
+import { processNotificationQueue } from './services/notificationService';
+import { prisma } from './lib/prisma';
 
 const app = express();
 
@@ -34,4 +36,15 @@ app.use('/api/admin', authMiddleware, requireRole('Admin', 'Manager'), adminRout
 const port = config.port;
 app.listen(port, '0.0.0.0', () => {
   console.log(`Risk API running on port ${port}`);
+
+  const NOTIFY_INTERVAL_MS = 60_000;
+  setInterval(async () => {
+    try {
+      const count = await processNotificationQueue(prisma);
+      if (count > 0) console.log(`Notifications processed: ${count}`);
+    } catch (err) {
+      console.error('Notification worker error:', err);
+    }
+  }, NOTIFY_INTERVAL_MS);
+  console.log(`Notification worker started (every ${NOTIFY_INTERVAL_MS / 1000}s)`);
 });
