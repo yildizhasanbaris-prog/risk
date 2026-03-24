@@ -37,7 +37,8 @@ Kendi PC’nizden Supabase **direct** host’a bağlanamıyorsanız migration’
 1. Bu repoyu GitHub’a push edin.
 2. Repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
    - Name: `SUPABASE_PRISMA_URL`
-   - Value: Supabase **Direct** URI (port **5432**), sonuna `?sslmode=require` ekleyin.
+   - Value: Önce Supabase **Direct** URI (port **5432**), sonuna `?sslmode=require`.  
+     **GitHub Actions’ta `P1001` / Can’t reach database** alırsanız aynı secret’ı **Session pooler** bağlantısı ile değiştirin (Supabase → Database → *Session pooler*, host `aws-*.pooler.supabase.com`, port **5432**; kullanıcı adı genelde `postgres.[PROJECT-REF]`). Bu adres IPv4 üzerinden çalışır.
 3. **Actions** → **Prisma migrate (Supabase)** → **Run workflow** → **Run workflow**.
 
 ---

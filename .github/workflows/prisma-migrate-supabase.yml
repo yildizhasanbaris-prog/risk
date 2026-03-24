@@ -5,8 +5,9 @@
 # 1) Kodu GitHub'a push edin (bu repo).
 # 2) GitHub → repo → Settings → Secrets and variables → Actions → New repository secret
 # 3) İsim: SUPABASE_PRISMA_URL
-#    Değer: Supabase → Project Settings → Database → Connection string → URI → Direct (port 5432)
-#            Sonuna ?sslmode=require ekleyin (örn. .../postgres?sslmode=require)
+#    Değer: Önce "Direct" (db.*.supabase.co:5432) deneyin; GitHub Actions'ta P1001 olursa
+#    Supabase → Database → Connection string → "Session pooler" (port 5432, host aws-*.pooler.supabase.com)
+#    kullanın — IPv4 ile runner'dan erişilir. Sonuna ?sslmode=require ekleyin.
 # 4) Actions sekmesi → sol menüde "Prisma migrate (Supabase)" → Run workflow → Run workflow
 #
 name: Prisma migrate (Supabase)
