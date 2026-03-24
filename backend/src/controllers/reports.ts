@@ -94,12 +94,17 @@ function maskConfidentialReport(report: Record<string, unknown>, roleName: strin
 async function generateReportNo(): Promise<string> {
   const year = new Date().getFullYear();
   const prefix = `SMS-${year}-`;
-  const last = await prisma.report.findFirst({
+  const all = await prisma.report.findMany({
     where: { reportNo: { startsWith: prefix } },
-    orderBy: { reportNo: 'desc' },
+    select: { reportNo: true },
   });
-  const nextNum = last ? parseInt(last.reportNo!.split('-')[2], 10) + 1 : 1;
-  return `${prefix}${String(nextNum).padStart(3, '0')}`;
+  let maxNum = 0;
+  for (const r of all) {
+    const suffix = r.reportNo?.replace(prefix, '') ?? '';
+    const num = parseInt(suffix, 10);
+    if (!isNaN(num) && num > maxNum) maxNum = num;
+  }
+  return `${prefix}${String(maxNum + 1).padStart(3, '0')}`;
 }
 
 export const reportController = {
