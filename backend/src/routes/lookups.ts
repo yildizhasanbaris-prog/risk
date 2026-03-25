@@ -16,4 +16,5 @@ lookupRoutes.get('/risk-acceptance-rules', lookupController.riskAcceptanceRules)
 lookupRoutes.get('/hf-taxonomy', lookupController.hfTaxonomy);
 lookupRoutes.get('/record-retention-rules', lookupController.recordRetentionRules);
 lookupRoutes.get('/confidentiality-rules', lookupController.confidentialityRules);
+lookupRoutes.get('/users', lookupController.users);
 lookupRoutes.get('/risk-calculate', lookupController.riskCalculate);

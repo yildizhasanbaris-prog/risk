@@ -139,6 +139,20 @@ export const lookupController = {
     }
   },
 
+  async users(_req: Request, res: Response) {
+    try {
+      const data = await prisma.user.findMany({
+        where: { isActive: true },
+        select: { id: true, name: true, email: true },
+        orderBy: { name: 'asc' },
+      });
+      return res.json(data);
+    } catch (err) {
+      console.error('Users lookup error:', err);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
+  },
+
   async riskCalculate(req: Request, res: Response) {
     try {
       const severity = String(req.query.severity || '').toUpperCase();

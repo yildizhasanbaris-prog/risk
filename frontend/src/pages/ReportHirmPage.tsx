@@ -20,6 +20,8 @@ export function ReportHirmPage() {
     proposedControls: '',
     severityCode: '' as '' | 'A' | 'B' | 'C' | 'D' | 'E',
     likelihoodCode: 0 as number,
+    riskOwnerUserId: undefined as number | undefined,
+    reviewDueDate: '',
   });
   const [previewRisk, setPreviewRisk] = useState<{ riskIndex: string; riskLevel: string } | null>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -53,6 +55,11 @@ export function ReportHirmPage() {
     queryKey: ['likelihood'],
     queryFn: () => lookupsApi.likelihood().then((r) => r.data),
   });
+  const { data: users = [] } = useQuery({
+    queryKey: ['lookups', 'users'],
+    queryFn: () => lookupsApi.users().then((r) => r.data),
+    enabled: canEdit,
+  });
 
   const createMutation = useMutation({
     mutationFn: (data: Parameters<typeof riskAssessmentsApi.create>[1]) =>
@@ -68,6 +75,8 @@ export function ReportHirmPage() {
         proposedControls: '',
         severityCode: '',
         likelihoodCode: 0,
+        riskOwnerUserId: undefined,
+        reviewDueDate: '',
       });
       setPreviewRisk(null);
     },
@@ -109,6 +118,8 @@ export function ReportHirmPage() {
       proposedControls: form.proposedControls || undefined,
       severityCode: form.severityCode,
       likelihoodCode: form.likelihoodCode,
+      riskOwnerUserId: form.riskOwnerUserId,
+      reviewDueDate: form.reviewDueDate || undefined,
     });
   };
 
@@ -184,7 +195,7 @@ export function ReportHirmPage() {
               />
             </div>
             <div style={{ marginBottom: 20 }}>
-              <label>Mevcut kontroller</label>
+              <label>Mevcut kontroller{form.assessmentType === 'INITIAL' ? ' *' : ''}</label>
               <textarea
                 value={form.existingControls}
                 onChange={(e) => setForm((f) => ({ ...f, existingControls: e.target.value }))}
@@ -199,6 +210,37 @@ export function ReportHirmPage() {
                 rows={2}
               />
             </div>
+            {form.assessmentType === 'INITIAL' && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+                <div>
+                  <label>Risk Sahibi *</label>
+                  <select
+                    value={form.riskOwnerUserId ?? ''}
+                    onChange={(e) =>
+                      setForm((f) => ({
+                        ...f,
+                        riskOwnerUserId: e.target.value ? parseInt(e.target.value, 10) : undefined,
+                      }))
+                    }
+                  >
+                    <option value="">Seçin</option>
+                    {users.filter((u) => u.isActive).map((u) => (
+                      <option key={u.id} value={u.id}>
+                        {u.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label>Gözden Geçirme Tarihi *</label>
+                  <input
+                    type="date"
+                    value={form.reviewDueDate}
+                    onChange={(e) => setForm((f) => ({ ...f, reviewDueDate: e.target.value }))}
+                  />
+                </div>
+              </div>
+            )}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
               <div>
                 <label>Severity (A-E)</label>
@@ -261,14 +303,30 @@ export function ReportHirmPage() {
                 </span>
               )}
             </div>
-            <button type="submit" disabled={createMutation.isPending || !form.severityCode || !form.likelihoodCode} className="btn">
+            <button
+              type="submit"
+              disabled={
+                createMutation.isPending ||
+                !form.severityCode ||
+                !form.likelihoodCode ||
+                (form.assessmentType === 'INITIAL' && (!form.riskOwnerUserId || !form.reviewDueDate || !form.existingControls?.trim()))
+              }
+              className="btn"
+            >
               {createMutation.isPending ? 'Kaydediliyor...' : 'Kaydet'}
             </button>
-            {createMutation.isError && (
-              <p style={{ color: 'var(--color-danger)', marginTop: 12 }}>
-                {(createMutation.error as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Hata'}
-              </p>
-            )}
+            {createMutation.isError && (() => {
+              const errData = (createMutation.error as { response?: { data?: { error?: string; details?: { fieldErrors?: Record<string, string[]> } } } })?.response?.data;
+              const fieldErrors = errData?.details?.fieldErrors;
+              return (
+                <div style={{ color: 'var(--color-danger)', marginTop: 12, fontSize: 13 }}>
+                  <p style={{ margin: 0, fontWeight: 600 }}>{errData?.error ?? 'Hata olustu'}</p>
+                  {fieldErrors && Object.entries(fieldErrors).map(([field, msgs]) => (
+                    <p key={field} style={{ margin: '4px 0 0' }}>• {(msgs as string[]).join(', ')}</p>
+                  ))}
+                </div>
+              );
+            })()}
           </form>
         </div>
       )}

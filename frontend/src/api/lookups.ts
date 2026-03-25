@@ -19,6 +19,7 @@ export const lookupsApi = {
       }[]
     >('/lookups/risk-acceptance-rules'),
   hfTaxonomy: () => api.get<{ id: number; code: string; description: string }[]>('/lookups/hf-taxonomy'),
+  users: () => api.get<{ id: number; name: string; email: string }[]>('/lookups/users'),
   riskCalculate: (severity: string, likelihood: number) =>
     api.get<{ riskIndex: string; riskLevel: string }>('/lookups/risk-calculate', {
       params: { severity, likelihood },
