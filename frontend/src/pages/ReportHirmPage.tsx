@@ -110,6 +110,9 @@ export function ReportHirmPage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.severityCode || !form.likelihoodCode) return;
+    if (form.assessmentType === 'INITIAL') {
+      if (!form.riskOwnerUserId || !form.reviewDueDate || !form.existingControls?.trim()) return;
+    }
     createMutation.mutate({
       assessmentType: form.assessmentType,
       hazardDescription: form.hazardDescription || undefined,

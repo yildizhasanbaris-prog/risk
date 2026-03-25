@@ -82,6 +82,7 @@ export const riskAssessmentController = {
 
       const parsed = createSchema.safeParse(req.body);
       if (!parsed.success) {
+        console.error('HIRM validation failed:', JSON.stringify(parsed.error.flatten()), 'body:', JSON.stringify(req.body));
         return res.status(400).json({ error: 'Validation error', details: parsed.error.flatten() });
       }
 

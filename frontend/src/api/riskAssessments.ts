@@ -24,6 +24,9 @@ export interface RiskAssessmentCreate {
   proposedControls?: string;
   severityCode: 'A' | 'B' | 'C' | 'D' | 'E';
   likelihoodCode: number;
+  riskOwnerUserId?: number;
+  reviewDueDate?: string;
+  acceptanceLevel?: string;
 }
 
 export const riskAssessmentsApi = {
