@@ -18,19 +18,7 @@ const riskAssessmentFields = z.object({
   reviewDueDate: z.string().optional(),
 });
 
-const createSchema = riskAssessmentFields.superRefine((data, ctx) => {
-  if (data.assessmentType === 'INITIAL') {
-    if (data.riskOwnerUserId == null) {
-      ctx.addIssue({ code: 'custom', message: 'Risk kalemi için risk sahibi zorunlu', path: ['riskOwnerUserId'] });
-    }
-    if (!data.reviewDueDate?.trim()) {
-      ctx.addIssue({ code: 'custom', message: 'Risk gözden geçirme tarihi zorunlu', path: ['reviewDueDate'] });
-    }
-    if (!data.existingControls?.trim()) {
-      ctx.addIssue({ code: 'custom', message: 'Mevcut kontroller zorunlu', path: ['existingControls'] });
-    }
-  }
-});
+const createSchema = riskAssessmentFields;
 
 const updateSchema = riskAssessmentFields.partial();
 
